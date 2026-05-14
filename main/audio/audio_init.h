@@ -1,16 +1,15 @@
 #ifndef __AUDIO_INIT_H__
 #define __AUDIO_INIT_H__
 
-#include "common_debug.h"
-
+#include <stdio.h>
+#include "esp_log.h"
+#include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "driver/i2s_tdm.h"
-#include "soc/soc_caps.h"
+#include "driver/gpio.h"
 #include "esp_codec_dev.h"
 #include "esp_codec_dev_defaults.h"
-#include "unity.h"
-#include "driver/i2c.h"
-#include "driver/gpio.h"
+
 
 #define AUDIO_I2S_GPIO_MCLK GPIO_NUM_40
 #define AUDIO_I2S_GPIO_WS GPIO_NUM_45
@@ -30,23 +29,24 @@
  * @brief 初始化音频系统
  * 
  */
-void audio_init(void);
+esp_err_t audio_init(void);
+esp_codec_dev_handle_t audio_get_playback_handle(void);
 
 /**
- * @brief 读取ES7210麦克风数据
- * 
- * @param buf 缓冲区
- * @param len 数据长度
+ * 从麦克风读取数据
+ * @param buffer 数据缓冲区
+ * @param size   期望读取的字节数
+ * @return 实际读取的字节数
  */
-void audio_es7210_read_mic(uint8_t *buf, int len);
+int audio_read(void *dest, int size);
 
 /**
- * @brief 写入ES8311扬声器数据
- * 
- * @param buf 缓冲区
- * @param len 数据长度
+ * 向扬声器写入数据
+ * @param buffer 数据缓冲区
+ * @param size   要写入的字节数
+ * @return 实际写入的字节数
  */
-void audio_es8311_write_speaker(uint8_t *buf, int len);
+int audio_write(const void *src, int size);
 
 /**
  * @brief es8311 修改音量大小
