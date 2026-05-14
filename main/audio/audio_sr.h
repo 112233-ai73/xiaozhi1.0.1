@@ -31,6 +31,7 @@ typedef struct {
     wakenet_state_t     wakenet_mode;
     esp_mn_state_t      state;
     int                 command_id;
+    float               confidence;
 } sr_result_t;
 
 esp_err_t app_sr_start(void);

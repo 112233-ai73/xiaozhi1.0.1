@@ -10,6 +10,9 @@ static srmodel_list_t *models = NULL;
 static RingbufHandle_t afe_rb_1 = NULL;
 static RingbufHandle_t afe_rb_2 = NULL;
 
+#define MULTINET_TIMEOUT_MS 500
+#define AFE_RINGBUF_FRAME_NUM 8
+
 static void audio_feed_task(void *arg)
 {
     esp_afe_sr_data_t *afe_data = (esp_afe_sr_data_t *)arg;
@@ -77,7 +80,7 @@ static void audio_detect_task(void *pvParam)
 
             if (afe_rb_1 == NULL)
             {
-                afe_rb_1 = xRingbufferCreate(feed_size, RINGBUF_TYPE_BYTEBUF);
+                afe_rb_1 = xRingbufferCreate(feed_size * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
                 if (afe_rb_1 == NULL)
                 {
                     ESP_LOGE(TAG, "create afe_rb_1 failed");
@@ -87,7 +90,7 @@ static void audio_detect_task(void *pvParam)
 
             if (afe_rb_2 == NULL)
             {
-                afe_rb_2 = xRingbufferCreate(feed_size, RINGBUF_TYPE_BYTEBUF);
+                afe_rb_2 = xRingbufferCreate(feed_size * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
                 if (afe_rb_2 == NULL)
                 {
                     ESP_LOGE(TAG, "create afe_rb_2 failed");
@@ -102,6 +105,72 @@ static void audio_detect_task(void *pvParam)
 
                 xRingbufferSend(afe_rb_1, res->data, afe_data_len, pdMS_TO_TICKS(20));
                 xRingbufferSend(afe_rb_2, res->data, afe_data_len, pdMS_TO_TICKS(20));
+            }
+        }
+    }
+}
+
+static void audio_multinet_task(void *arg)
+{
+    (void)arg;
+
+    const size_t mn_chunk_bytes = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
+
+    while (true)
+    {
+        size_t item_size = 0;
+        int16_t *item = (int16_t *)xRingbufferReceive(afe_rb_1, &item_size, portMAX_DELAY);
+        if (item == NULL)
+        {
+            continue;
+        }
+
+        TickType_t start_tick = xTaskGetTickCount();
+        esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
+
+        while (true)
+        {
+            if (item_size >= mn_chunk_bytes)
+            {
+                mn_state = multinet->detect(model_data, item);
+            }
+            vRingbufferReturnItem(afe_rb_1, item);
+            item = NULL;
+
+            if (mn_state == ESP_MN_STATE_DETECTED)
+            {
+                esp_mn_results_t *mn_result = multinet->get_results(model_data);
+                if (mn_result != NULL && mn_result->num > 0)
+                {
+                    sr_result_t result = {0};
+                    result.wakenet_mode = WAKENET_NO_DETECT;
+                    result.state = ESP_MN_STATE_DETECTED;
+                    result.command_id = mn_result->command_id[0];
+                    result.confidence = mn_result->prob[0];
+
+                    ESP_LOGI(TAG, "command detected: id=%d, confidence=%.3f",
+                             result.command_id, result.confidence);
+                    xQueueOverwrite(g_result_que, &result);
+                }
+                break;
+            }
+
+            TickType_t elapsed_tick = xTaskGetTickCount() - start_tick;
+            if (elapsed_tick >= pdMS_TO_TICKS(MULTINET_TIMEOUT_MS) ||
+                mn_state == ESP_MN_STATE_TIMEOUT)
+            {
+                ESP_LOGW(TAG, "command detect timeout");
+                multinet->clean(model_data);
+                break;
+            }
+
+            TickType_t remain_tick = pdMS_TO_TICKS(MULTINET_TIMEOUT_MS) - elapsed_tick;
+            item = (int16_t *)xRingbufferReceive(afe_rb_1, &item_size, remain_tick);
+            if (item == NULL)
+            {
+                ESP_LOGW(TAG, "command detect timeout");
+                multinet->clean(model_data);
+                break;
             }
         }
     }
@@ -142,6 +211,13 @@ esp_err_t app_sr_start(void)
     ESP_RETURN_ON_FALSE(NULL != model_data, ESP_FAIL, TAG, "Failed create multinet data");
     ESP_LOGI(TAG, "load multinet:%s", mn_name);
 
+    size_t mn_chunk_bytes = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
+    afe_rb_1 = xRingbufferCreate(mn_chunk_bytes * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
+    ESP_RETURN_ON_FALSE(NULL != afe_rb_1, ESP_ERR_NO_MEM, TAG, "Failed create afe_rb_1");
+
+    afe_rb_2 = xRingbufferCreate(mn_chunk_bytes * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
+    ESP_RETURN_ON_FALSE(NULL != afe_rb_2, ESP_ERR_NO_MEM, TAG, "Failed create afe_rb_2");
+
     esp_mn_commands_clear();
     for (int i = 0; i < command_word_count; i++)
     {
@@ -157,6 +233,9 @@ esp_err_t app_sr_start(void)
 
     ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, NULL, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
+
+    ret_val = xTaskCreatePinnedToCore(audio_multinet_task, "MultiNet Task", 6 * 1024, NULL, 5, NULL, 1);
+    ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create multinet task");
 
     return ESP_OK;
 }
