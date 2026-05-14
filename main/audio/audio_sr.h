@@ -14,13 +14,14 @@
 
 #include "esp_afe_sr_models.h"
 #include "esp_mn_models.h"
+#include "esp_wn_models.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
 #include "command_word.h"
 
-
+#include <assert.h>
 
 #include "model_path.h"
 #include "esp_mn_speech_commands.h"
@@ -32,5 +33,6 @@ typedef struct {
     int                 command_id;
 } sr_result_t;
 
+esp_err_t app_sr_start(void);
 
 #endif /* __AUDIO_SR_H__ */

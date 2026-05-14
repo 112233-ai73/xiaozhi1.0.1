@@ -1,10 +1,10 @@
 idf_component_register(SRCS "main.c"
-                    "com/com_debug.c"
                     "com/com_status.c"
                     "audio/audio_init.c"
                     "audio/audio_sr.c"
+                    "com/command_word.c"
                     INCLUDE_DIRS "."
-                    "com"
-                    "audio"
+                                "com"
+                                "audio"
                     EMBED_TXTFILES "../managed_components/espressif__esp-sr/model/multinet_model/fst/commands_cn.txt"
                     )

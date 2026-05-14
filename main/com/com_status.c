@@ -1,5 +1,9 @@
 #include "com_status.h"
 
+#include "esp_log.h"
+
+static const char *TAG = "COM_STATUS";
+
 com_status_t com_status = START;
 
 char *com_status_str[] = {
@@ -16,9 +20,7 @@ char *com_status_str[] = {
  */
 void com_status_change(com_status_t status)
 {
-
-    // 打印当前是什么状态,要变成什么状态
-    MY_LOGE("com_status_change: %s -> %s", com_status_str[com_status], com_status_str[status]);
+    ESP_LOGI(TAG, "status change: %s -> %s",com_status,status);
 
     com_status = status;
 }

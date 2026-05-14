@@ -1,6 +1,5 @@
 #ifndef __COM_STATUS_H__
 #define __COM_STATUS_H__
-#include "com/com_debug.h"
 
 typedef enum
 {
