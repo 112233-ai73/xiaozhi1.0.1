@@ -121,6 +121,11 @@ static void audio_multinet_task(void *arg)
             &item_size,
             portMAX_DELAY);
 
+        
+        if (audio_data == NULL)
+        {
+            continue;
+        }
         size_t expected_size = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
 
         if (item_size != expected_size)
@@ -132,14 +137,12 @@ static void audio_multinet_task(void *arg)
             continue;
         }
 
-        if (audio_data == NULL)
-        {
-            continue;
-        }
         esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
 
         mn_state = multinet->detect(model_data, audio_data);
 
+        vRingbufferReturnItem(afe_rb_1, audio_data);
+        
         if (mn_state == ESP_MN_STATE_DETECTING)
         {
             continue;
@@ -153,6 +156,7 @@ static void audio_multinet_task(void *arg)
                 .state = mn_state,
                 .command_id = -1,
             };
+            com_status_change(WORKING);
             xQueueSend(g_result_que, &result, 10);
             continue;
         }
@@ -173,6 +177,7 @@ static void audio_multinet_task(void *arg)
                 .state = mn_state,
                 .command_id = sr_command_id,
             };
+            com_status_change(WORKING);
             xQueueSend(g_result_que, &result, 10);
         }
     }
@@ -190,7 +195,7 @@ esp_err_t app_sr_start(void)
     ESP_RETURN_ON_FALSE(NULL != afe_config, ESP_ERR_NO_MEM, TAG, "Failed create AFE config");
 
     afe_config->wakenet_model_name = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
-    afe_config->aec_init = false;
+    afe_config->aec_init = true;
     afe_config->vad_init = true;
     afe_config->vad_mode = VAD_MODE_0;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
@@ -241,6 +246,9 @@ esp_err_t app_sr_start(void)
 
     ret_val = xTaskCreatePinnedToCore(audio_multinet_task, "MultiNet Task", 6 * 1024, NULL, 5, NULL, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create multinet task");
+
+    ret_val = xTaskCreatePinnedToCore(sr_handler_task, "SR Handler Task", 4 * 1024, g_result_que, 1, NULL, 1);
+    ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG,  "Failed create audio handler task");
 
     return ESP_OK;
 }

@@ -63,7 +63,7 @@ static void sr_listening_test_task(void *arg)
         if (com_status == WORKING)
         {
             ESP_LOGI(TAG, "enter command listening");
-            com_status_change(LISTERENING);
+            com_status_change(LISTENING);
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
