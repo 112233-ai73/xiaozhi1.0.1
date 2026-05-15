@@ -3,6 +3,7 @@ idf_component_register(SRCS "main.c"
                     "audio/audio_init.c"
                     "audio/audio_sr.c"
                     "audio/audio_sr_handler.c"
+                    "audio/audio_mp3_decode.c"
                     "com/command_word.c"
                     "usart/usart_init.c"
                     INCLUDE_DIRS "."
@@ -10,3 +11,5 @@ idf_component_register(SRCS "main.c"
                                 "audio"
                     EMBED_TXTFILES "../managed_components/espressif__esp-sr/model/multinet_model/fst/commands_cn.txt"
                     )
+spiffs_create_partition_image(mp3 ./asset FLASH_IN_PROJECT)
+
