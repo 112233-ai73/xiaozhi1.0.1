@@ -6,7 +6,7 @@ typedef enum
     START = 0,   // 默认起始状态
     IDLE,        // 空闲状态 表示准备工作已经完毕
     WORKING,     // 正在工作状态,已唤醒
-    LISTERENING, // 正在监听状态
+    LISTENING, // 正在监听状态
     SPEAKING,    // 正在说话状态
 } com_status_t;
 

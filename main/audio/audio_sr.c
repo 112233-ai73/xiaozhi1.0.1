@@ -9,8 +9,10 @@ static QueueHandle_t g_result_que = NULL;
 static srmodel_list_t *models = NULL;
 static RingbufHandle_t afe_rb_1 = NULL;
 static RingbufHandle_t afe_rb_2 = NULL;
+static volatile bool g_vad_speech = false;
 
-#define MULTINET_TIMEOUT_MS 500
+#define SPEECH_END_TIMEOUT_MS 500
+#define COMMAND_RESULT_TIMEOUT_MS 500
 #define AFE_RINGBUF_FRAME_NUM 8
 
 static void audio_feed_task(void *arg)
@@ -72,8 +74,10 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
-        if (com_status == LISTERENING && res->vad_state == VAD_SPEECH)
+        if (com_status == LISTERENING)
         {
+            g_vad_speech = (res->vad_state == VAD_SPEECH);
+
             int feed_chunksize = afe_handle->get_feed_chunksize(afe_data);
             int feed_nch = afe_handle->get_feed_channel_num(afe_data);
             size_t feed_size = feed_chunksize * feed_nch * sizeof(int16_t);
@@ -88,24 +92,20 @@ static void audio_detect_task(void *pvParam)
                 }
             }
 
-            if (afe_rb_2 == NULL)
-            {
-                afe_rb_2 = xRingbufferCreate(feed_size * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
-                if (afe_rb_2 == NULL)
-                {
-                    ESP_LOGE(TAG, "create afe_rb_2 failed");
-                    continue;
-                }
-            }
-
             if (res->data)
             {
                 size_t afe_data_len =
                     afe_handle->get_fetch_chunksize(afe_data) * sizeof(int16_t);
 
-                xRingbufferSend(afe_rb_1, res->data, afe_data_len, pdMS_TO_TICKS(20));
-                xRingbufferSend(afe_rb_2, res->data, afe_data_len, pdMS_TO_TICKS(20));
+                if (xRingbufferSend(afe_rb_1, res->data, afe_data_len, pdMS_TO_TICKS(20)) != pdTRUE)
+                {
+                    ESP_LOGW(TAG, "send afe_rb_1 failed, len=%u", (unsigned int)afe_data_len);
+                }
             }
+        }
+        else
+        {
+            g_vad_speech = false;
         }
     }
 }
@@ -113,65 +113,57 @@ static void audio_detect_task(void *pvParam)
 static void audio_multinet_task(void *arg)
 {
     (void)arg;
-
-    const size_t mn_chunk_bytes = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
-
     while (true)
     {
         size_t item_size = 0;
-        int16_t *item = (int16_t *)xRingbufferReceive(afe_rb_1, &item_size, portMAX_DELAY);
-        if (item == NULL)
+        int16_t *audio_data = (int16_t *)xRingbufferReceive(
+            afe_rb_1,
+            &item_size,
+            portMAX_DELAY
+        );
+
+        if (audio_data == NULL)
+        {
+            continue;
+        }
+        esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
+
+        mn_state = multinet->detect(model_data, audio_data);
+
+        if (com_status ==ESP_MN_STATE_DETECTING )
         {
             continue;
         }
 
-        TickType_t start_tick = xTaskGetTickCount();
-        esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
-
-        while (true)
+        if (ESP_MN_STATE_TIMEOUT == mn_state)
         {
-            if (item_size >= mn_chunk_bytes)
-            {
-                mn_state = multinet->detect(model_data, item);
-            }
-            vRingbufferReturnItem(afe_rb_1, item);
-            item = NULL;
+            ESP_LOGW(TAG, "Time out");
+            sr_result_t result = {
+                .wakenet_mode = WAKENET_NO_DETECT,
+                .state = mn_state,
+                .command_id = -1,
+            };
+            xQueueSend(g_result_que, &result, 10);
+            continue;
+        }
 
-            if (mn_state == ESP_MN_STATE_DETECTED)
+        if (ESP_MN_STATE_DETECTED == mn_state)
+        {
+            esp_mn_results_t *mn_result = multinet->get_results(model_data);
+            for (int i = 0; i < mn_result->num; i++)
             {
-                esp_mn_results_t *mn_result = multinet->get_results(model_data);
-                if (mn_result != NULL && mn_result->num > 0)
-                {
-                    sr_result_t result = {0};
-                    result.wakenet_mode = WAKENET_NO_DETECT;
-                    result.state = ESP_MN_STATE_DETECTED;
-                    result.command_id = mn_result->command_id[0];
-                    result.confidence = mn_result->prob[0];
-
-                    ESP_LOGI(TAG, "command detected: id=%d, confidence=%.3f",
-                             result.command_id, result.confidence);
-                    xQueueOverwrite(g_result_que, &result);
-                }
-                break;
+                ESP_LOGI(TAG, "TOP %d, command_id: %d, phrase_id: %d, prob: %f",
+                         i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
             }
 
-            TickType_t elapsed_tick = xTaskGetTickCount() - start_tick;
-            if (elapsed_tick >= pdMS_TO_TICKS(MULTINET_TIMEOUT_MS) ||
-                mn_state == ESP_MN_STATE_TIMEOUT)
-            {
-                ESP_LOGW(TAG, "command detect timeout");
-                multinet->clean(model_data);
-                break;
-            }
-
-            TickType_t remain_tick = pdMS_TO_TICKS(MULTINET_TIMEOUT_MS) - elapsed_tick;
-            item = (int16_t *)xRingbufferReceive(afe_rb_1, &item_size, remain_tick);
-            if (item == NULL)
-            {
-                ESP_LOGW(TAG, "command detect timeout");
-                multinet->clean(model_data);
-                break;
-            }
+            int sr_command_id = mn_result->command_id[0];
+            ESP_LOGI(TAG, "Deteted command : %d", sr_command_id);
+            sr_result_t result = {
+                .wakenet_mode = WAKENET_NO_DETECT,
+                .state = mn_state,
+                .command_id = sr_command_id,
+            };
+            xQueueSend(g_result_que, &result, 10);
         }
     }
 }
@@ -238,4 +230,9 @@ esp_err_t app_sr_start(void)
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create multinet task");
 
     return ESP_OK;
+}
+
+QueueHandle_t app_sr_get_result_queue(void)
+{
+    return g_result_que;
 }
