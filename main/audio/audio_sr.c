@@ -74,7 +74,7 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
-        if (com_status == LISTERENING)
+        if (com_status == LISTENING)
         {
             g_vad_speech = (res->vad_state == VAD_SPEECH);
 
@@ -119,8 +119,18 @@ static void audio_multinet_task(void *arg)
         int16_t *audio_data = (int16_t *)xRingbufferReceive(
             afe_rb_1,
             &item_size,
-            portMAX_DELAY
-        );
+            portMAX_DELAY);
+
+        size_t expected_size = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
+
+        if (item_size != expected_size)
+        {
+            ESP_LOGW(TAG, "unexpected mn data size: %u, expected: %u",
+                     (unsigned int)item_size,
+                     (unsigned int)expected_size);
+            vRingbufferReturnItem(afe_rb_1, audio_data);
+            continue;
+        }
 
         if (audio_data == NULL)
         {
@@ -130,7 +140,7 @@ static void audio_multinet_task(void *arg)
 
         mn_state = multinet->detect(model_data, audio_data);
 
-        if (com_status ==ESP_MN_STATE_DETECTING )
+        if (mn_state == ESP_MN_STATE_DETECTING)
         {
             continue;
         }
@@ -181,6 +191,9 @@ esp_err_t app_sr_start(void)
 
     afe_config->wakenet_model_name = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
     afe_config->aec_init = false;
+    afe_config->vad_init = true;
+    afe_config->vad_mode = VAD_MODE_0;
+    afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 
     afe_handle = esp_afe_handle_from_config(afe_config);
     ESP_RETURN_ON_FALSE(NULL != afe_handle, ESP_FAIL, TAG, "Failed create AFE handle");
