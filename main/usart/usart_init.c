@@ -4,6 +4,8 @@
 
 static const char *TAG = "USART";
 
+#define USART_LOG_HEX_MAX_BYTES 32
+
 /**
  * @brief 计算异或校验和
  * @param data 数据缓冲区
@@ -57,12 +59,22 @@ void usart_send_data(const uint8_t *data)
     }
 
     uint8_t len = data[1];
-    char hex_buf[UART_BUF_SIZE * 3 + 1] = {0};
+    if (len < 3 || len > UART_BUF_SIZE) {
+        ESP_LOGW(TAG, "USART send ignored: invalid len=%u", len);
+        return;
+    }
+
+    const uint8_t log_len = (len > USART_LOG_HEX_MAX_BYTES) ? USART_LOG_HEX_MAX_BYTES : len;
+    char hex_buf[USART_LOG_HEX_MAX_BYTES * 3 + 4] = {0};
     int offset = 0;
 
-    for (uint8_t i = 0; i < len && offset < (int)sizeof(hex_buf); i++) {
+    for (uint8_t i = 0; i < log_len && offset < (int)sizeof(hex_buf); i++) {
         offset += snprintf(hex_buf + offset, sizeof(hex_buf) - offset,
-                           "%02X%s", data[i], (i + 1 < len) ? " " : "");
+                           "%02X%s", data[i], (i + 1 < log_len) ? " " : "");
+    }
+
+    if (log_len < len && offset < (int)sizeof(hex_buf)) {
+        snprintf(hex_buf + offset, sizeof(hex_buf) - offset, "...");
     }
 
     int written = uart_write_bytes(UART_NUM, data, len);
@@ -81,13 +93,13 @@ void usart_receive_task(void *pvParameters) {
 
     while (1) {
         // 1. 寻找帧头 0xBB
-        if (uart_read_bytes(UART_NUM_0, &temp_byte, 1, portMAX_DELAY) > 0) {
+        if (uart_read_bytes(UART_NUM, &temp_byte, 1, portMAX_DELAY) > 0) {
             if (temp_byte != FRAME_HEADER_BB) continue;
 
             full_packet[0] = temp_byte; // 存入帧头
 
             // 2. 读取长度位 (长度位在第2个字节)
-            if (uart_read_bytes(UART_NUM_0, &full_packet[1], 1, pdMS_TO_TICKS(100)) <= 0) continue;
+            if (uart_read_bytes(UART_NUM, &full_packet[1], 1, pdMS_TO_TICKS(100)) <= 0) continue;
             
             uint8_t packet_len = full_packet[1];
 
@@ -100,7 +112,7 @@ void usart_receive_task(void *pvParameters) {
             // 3. 读取剩余数据（包括命令、数据内容、以及最后的校验位）
             // 剩余字节数 = 总长度 - 已读的(帧头 + 长度位)
             int remaining_len = packet_len - 2; 
-            int read_res = uart_read_bytes(UART_NUM_0, &full_packet[2], remaining_len, pdMS_TO_TICKS(100));
+            int read_res = uart_read_bytes(UART_NUM, &full_packet[2], remaining_len, pdMS_TO_TICKS(100));
 
             if (read_res == remaining_len) {
                 // 4. 进行异或校验

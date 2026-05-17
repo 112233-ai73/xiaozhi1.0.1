@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "audio_init.h"
+#include "audio_mp3_decode.h"
 #include "com/com_status.h"
 
 #include "esp_afe_sr_models.h"

@@ -12,8 +12,34 @@ static RingbufHandle_t afe_rb_2 = NULL;
 static volatile bool g_vad_speech = false;
 
 #define SPEECH_END_TIMEOUT_MS 500
-#define COMMAND_RESULT_TIMEOUT_MS 500
+#define WAKE_WORKING_HOLD_MS 500
+#define NO_SPEECH_IDLE_TIMEOUT_MS 30000
+#define WAKE_ACK_MP3_FILE "105.mp3"
 #define AFE_RINGBUF_FRAME_NUM 8
+
+static TickType_t ms_to_ticks(uint32_t timeout_ms)
+{
+    return pdMS_TO_TICKS(timeout_ms);
+}
+
+static bool timeout_elapsed(TickType_t now, TickType_t start, uint32_t timeout_ms)
+{
+    return (now - start) >= ms_to_ticks(timeout_ms);
+}
+
+static void send_afe_data_to_multinet(esp_afe_sr_data_t *afe_data, afe_fetch_result_t *res)
+{
+    if (res->data == NULL || afe_rb_1 == NULL)
+    {
+        return;
+    }
+
+    size_t afe_data_len = afe_handle->get_fetch_chunksize(afe_data) * sizeof(int16_t);
+    if (xRingbufferSend(afe_rb_1, res->data, afe_data_len, pdMS_TO_TICKS(20)) != pdTRUE)
+    {
+        ESP_LOGW(TAG, "send afe_rb_1 failed, len=%u", (unsigned int)afe_data_len);
+    }
+}
 
 static void audio_feed_task(void *arg)
 {
@@ -41,6 +67,10 @@ static void audio_detect_task(void *pvParam)
 {
     com_status_change(IDLE);
     esp_afe_sr_data_t *afe_data = (esp_afe_sr_data_t *)pvParam;
+    TickType_t working_enter_tick = 0;
+    TickType_t last_voice_tick = 0;
+    TickType_t speech_end_tick = 0;
+    bool listening_has_speech = false;
 
     int afe_chunksize = afe_handle->get_fetch_chunksize(afe_data);
     int mu_chunksize = multinet->get_samp_chunksize(model_data);
@@ -55,7 +85,7 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
-        if (res->wakeup_state == WAKENET_DETECTED)
+        if ((com_status == IDLE || com_status == START) && res->wakeup_state == WAKENET_DETECTED)
         {
             ESP_LOGI(TAG, "Wakeword detected");
 
@@ -67,45 +97,92 @@ static void audio_detect_task(void *pvParam)
             xQueueSend(g_result_que, &result, 10);
             continue;
         }
-        else if (res->wakeup_state == WAKENET_CHANNEL_VERIFIED)
+        else if ((com_status == IDLE || com_status == START) && res->wakeup_state == WAKENET_CHANNEL_VERIFIED)
         {
             ESP_LOGI(TAG, "Channel verified");
             com_status_change(WORKING);
+            working_enter_tick = xTaskGetTickCount();
+            last_voice_tick = working_enter_tick;
+            speech_end_tick = 0;
+            listening_has_speech = false;
+            audio_mp3_play_file_async(WAKE_ACK_MP3_FILE);
             continue;
+        }
+
+        TickType_t now = xTaskGetTickCount();
+
+        if (com_status == IDLE || com_status == START)
+        {
+            g_vad_speech = false;
+            continue;
+        }
+
+        if (com_status == LISTENING && res->vad_state == VAD_SPEECH)
+        {
+            last_voice_tick = now;
+        }
+
+        if ((com_status == WORKING || com_status == LISTENING || com_status == SPEAKING) &&
+            last_voice_tick != 0 &&
+            timeout_elapsed(now, last_voice_tick, NO_SPEECH_IDLE_TIMEOUT_MS))
+        {
+            ESP_LOGI(TAG, "no speech for %d ms, enter idle", NO_SPEECH_IDLE_TIMEOUT_MS);
+            com_status_change(IDLE);
+            g_vad_speech = false;
+            listening_has_speech = false;
+            continue;
+        }
+
+        if (com_status == WORKING)
+        {
+            g_vad_speech = false;
+            if (!timeout_elapsed(now, working_enter_tick, WAKE_WORKING_HOLD_MS))
+            {
+                continue;
+            }
+
+            if (res->vad_state == VAD_SPEECH)
+            {
+                ESP_LOGI(TAG, "voice detected, enter listening");
+                com_status_change(LISTENING);
+                last_voice_tick = now;
+                listening_has_speech = true;
+                speech_end_tick = 0;
+            }
         }
 
         if (com_status == LISTENING)
         {
             g_vad_speech = (res->vad_state == VAD_SPEECH);
-
-            int feed_chunksize = afe_handle->get_feed_chunksize(afe_data);
-            int feed_nch = afe_handle->get_feed_channel_num(afe_data);
-            size_t feed_size = feed_chunksize * feed_nch * sizeof(int16_t);
-
-            if (afe_rb_1 == NULL)
+            if (res->vad_state == VAD_SPEECH)
             {
-                afe_rb_1 = xRingbufferCreate(feed_size * AFE_RINGBUF_FRAME_NUM, RINGBUF_TYPE_BYTEBUF);
-                if (afe_rb_1 == NULL)
-                {
-                    ESP_LOGE(TAG, "create afe_rb_1 failed");
-                    continue;
-                }
+                listening_has_speech = true;
+                speech_end_tick = 0;
+                send_afe_data_to_multinet(afe_data, res);
+                continue;
             }
 
-            if (res->data)
+            if (listening_has_speech)
             {
-                size_t afe_data_len =
-                    afe_handle->get_fetch_chunksize(afe_data) * sizeof(int16_t);
-
-                if (xRingbufferSend(afe_rb_1, res->data, afe_data_len, pdMS_TO_TICKS(20)) != pdTRUE)
+                if (speech_end_tick == 0)
                 {
-                    ESP_LOGW(TAG, "send afe_rb_1 failed, len=%u", (unsigned int)afe_data_len);
+                    speech_end_tick = now;
+                }
+
+                if (timeout_elapsed(now, speech_end_tick, SPEECH_END_TIMEOUT_MS))
+                {
+                    ESP_LOGI(TAG, "speech ended, enter working");
+                    com_status_change(WORKING);
+                    working_enter_tick = now;
+                    listening_has_speech = false;
+                    speech_end_tick = 0;
                 }
             }
         }
-        else
+        else if (com_status == SPEAKING)
         {
             g_vad_speech = false;
+            send_afe_data_to_multinet(afe_data, res);
         }
     }
 }
@@ -177,7 +254,7 @@ static void audio_multinet_task(void *arg)
                 .state = mn_state,
                 .command_id = sr_command_id,
             };
-            com_status_change(WORKING);
+            com_status_change(SPEAKING);
             xQueueSend(g_result_que, &result, 10);
         }
     }
@@ -195,6 +272,7 @@ esp_err_t app_sr_start(void)
     ESP_RETURN_ON_FALSE(NULL != afe_config, ESP_ERR_NO_MEM, TAG, "Failed create AFE config");
 
     afe_config->wakenet_model_name = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
+    ESP_RETURN_ON_FALSE(NULL != afe_config->wakenet_model_name, ESP_FAIL, TAG, "No wakenet model found");
     afe_config->aec_init = true;
     afe_config->vad_init = true;
     afe_config->vad_mode = VAD_MODE_0;
@@ -206,6 +284,12 @@ esp_err_t app_sr_start(void)
     esp_afe_sr_data_t *afe_data = afe_handle->create_from_config(afe_config);
     ESP_RETURN_ON_FALSE(NULL != afe_data, ESP_FAIL, TAG, "Failed create AFE data");
     ESP_LOGI(TAG, "load wakenet:%s", afe_config->wakenet_model_name);
+    char *wake_words = esp_srmodel_get_wake_words(models, afe_config->wakenet_model_name);
+    if (wake_words != NULL)
+    {
+        ESP_LOGI(TAG, "wake words:%s", wake_words);
+        free(wake_words);
+    }
 
     char *mn_name = esp_srmodel_filter(models, ESP_MN_CHINESE, NULL);
     if (mn_name == NULL)

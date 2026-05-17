@@ -85,207 +85,243 @@ void sr_handler_task(void *pvParam)
 
         if (WAKENET_DETECTED == result.wakenet_mode)
         {
-            ESP_LOGI(TAG, "设备已唤醒");
+            ESP_LOGI(TAG, "wakeword detected");
             continue;
         }
 
-        if (ESP_MN_STATE_DETECTED & result.state)
+        if (ESP_MN_STATE_DETECTED == result.state)
         {
             ESP_LOGI(TAG, "mn detected");
 
             switch (result.command_id)
             {
             case 0:
-                usart_send_data(Sleep_Mode);
-                break;
-            case 1:
-                usart_send_data(Relax_Mode);
-                break;
-            case 2:
-                usart_send_data(Deep_Sleep_Mode);
-                break;
-            case 3:
-                usart_send_data(Sleep_Aid_Mode);
-                break;
-            case 4:
-                usart_send_data(Relaxation_Mode);
-                break;
-            case 5:
-                usart_send_data(Decompression_Mode);
-                break;
-            case 6:
-                usart_send_data(Head_Rise);
-                break;
-            case 7:
-                usart_send_data(Head_Down);
-                break;
-            case 8:
-                usart_send_data(Foot_Rise);
-                break;
-            case 9:
-                usart_send_data(Foot_Down);
-                break;
-            case 10:
-                usart_send_data(Stop);
-                break;
-            case 11:
-                usart_send_data(Both_Rise);
-                break;
-            case 12:
-                usart_send_data(Both_Down);
-                break;
-            case 13:
-                usart_send_data(Head_Massage_On);
-                break;
-            case 14:
-                usart_send_data(Head_Massage_Off);
-                break;
-            case 15:
-                usart_send_data(Foot_Massage_On);
-                break;
-            case 16:
-                usart_send_data(Foot_Massage_Off);
-                break;
-            case 17:
-                usart_send_data(Turn_On_Relaxation);
-                break;
-            case 18:
-                usart_send_data(Turn_Off_Relaxation);
-                break;
-            case 19:
-                usart_send_data(Massage_Mode_One);
-                break;
-            case 20:
-                usart_send_data(Massage_Mode_Two);
-                break;
-            case 21:
-                usart_send_data(Massage_Mode_Three);
-                break;
-            case 22:
-                usart_send_data(Massage_10_Minutes);
-                break;
-            case 23:
-                usart_send_data(Massage_20_Minutes);
-                break;
-            case 24:
-                usart_send_data(Massage_30_Minutes);
-                break;
-            case 25:
-                usart_send_data(Light_On);
-                break;
-            case 26:
-                usart_send_data(Light_Off);
-                break;
-            case 27:
-                usart_send_data(Waist_Support_Mode);
-                break;
-            case 28:
-                usart_send_data(Waist_Support_Mode);
-                break;
-            case 29:
-                usart_send_data(Left_Lumbar_Support_Mode);
-                break;
-            case 30:
-                usart_send_data(Right_Lumbar_Support_Mode);
-                break;
-            case 31:
-                usart_send_data(Softer_Lumbar_Support);
-                break;
-            case 32:
-                usart_send_data(Softer_Left_Lumbar_Support);
-                break;
-            case 33:
-                usart_send_data(Softer_Right_Lumbar_Support);
-                break;
-            case 34:
-                usart_send_data(Firmer_Lumbar_Support);
-                break;
-            case 35:
-                usart_send_data(Firmer_Left_Lumbar_Support);
-                break;
-            case 36:
-                usart_send_data(Firmer_Right_Lumbar_Support);
-                break;
-            case 37:
-                usart_send_data(Turn_Off_Waist_Support);
-                break;
-            case 38:
-                usart_send_data(Left_Lumbar_Support_Off);
-                break;
-            case 39:
-                usart_send_data(Right_Lumbar_Support_Off);
-                break;
-            case 40:
-                usart_send_data(Heat_On);
-                break;
-            case 41:
-                usart_send_data(Heat_Off);
-                break;
-            case 42:
                 usart_send_data(Head_Zero);
                 break;
-            case 43:
+            case 1:
                 usart_send_data(Head_One);
                 break;
-            case 44:
+            case 2:
                 usart_send_data(Head_Two);
                 break;
-            case 45:
+            case 3:
                 usart_send_data(Head_Three);
                 break;
-            case 46:
+            case 4:
                 usart_send_data(Head_Four);
                 break;
-            case 47:
+            case 5:
                 usart_send_data(Head_Five);
                 break;
-            case 48:
+            case 6:
                 usart_send_data(Head_Six);
                 break;
-            case 49:
+            case 7:
                 usart_send_data(Head_Seven);
                 break;
-            case 50:
+            case 8:
                 usart_send_data(Head_Eight);
                 break;
-            case 51:
+            case 9:
                 usart_send_data(Head_Nine);
                 break;
-            case 52:
+            case 10:
                 usart_send_data(Head_Ten);
                 break;
-            case 53:
+            case 11:
                 usart_send_data(Foot_Zero);
                 break;
-            case 54:
+            case 12:
                 usart_send_data(Foot_One);
                 break;
-            case 55:
+            case 13:
                 usart_send_data(Foot_Two);
                 break;
-            case 56:
+            case 14:
                 usart_send_data(Foot_Three);
                 break;
-            case 57:
+            case 15:
                 usart_send_data(Foot_Four);
                 break;
-            case 58:
+            case 16:
                 usart_send_data(Foot_Five);
                 break;
-            case 59:
+            case 17:
                 usart_send_data(Foot_Six);
                 break;
-            case 60:
+            case 18:
                 usart_send_data(Foot_Seven);
                 break;
-            case 61:
+            case 19:
                 usart_send_data(Foot_Eight);
                 break;
-            case 62:
+            case 20:
                 usart_send_data(Foot_Nine);
                 break;
-            case 63:
+            case 21:
                 usart_send_data(Foot_Ten);
+                break;
+            case 22:
+                usart_send_data(Head_Rise);
+                break;
+            case 23:
+                usart_send_data(Head_Down);
+                break;
+            case 24:
+                usart_send_data(Foot_Rise);
+                break;
+            case 25:
+                usart_send_data(Foot_Down);
+                break;
+            case 26:
+                usart_send_data(Both_Rise);
+                break;
+            case 27:
+                usart_send_data(Both_Down);
+                break;
+            case 28:
+
+                break;
+            case 29:
+
+                break;
+            case 30:
+                usart_send_data(Light_On);
+                break;
+            case 31:
+                usart_send_data(Light_Off);
+                break;
+            case 32:
+                usart_send_data(Light_On);
+                break;
+            case 33:
+                usart_send_data(Light_Off);
+                break;
+            case 34:
+                usart_send_data(Sleep_Mode);
+                break;
+            case 35:
+
+                break;
+            case 36:
+                usart_send_data(Relax_Mode);
+                break;
+            case 37:
+
+                break;
+            case 38:
+                usart_send_data(Deep_Sleep_Mode);
+                break;
+            case 39:
+
+                break;
+            case 40:
+                usart_send_data(Sleep_Aid_Mode);
+                break;
+            case 41:
+
+                break;
+            case 42:
+                usart_send_data(Relaxation_Mode);
+                break;
+            case 43:
+
+                break;
+            case 44:
+
+                break;
+            case 45:
+                usart_send_data(Waist_Support_Mode);
+                break;
+            case 46:
+                usart_send_data(Softer_Lumbar_Support);
+                break;
+            case 47:
+                usart_send_data(Firmer_Lumbar_Support);
+                break;
+            case 48:
+                usart_send_data(Left_Lumbar_Support_Mode);
+                break;
+            case 49:
+                usart_send_data(Right_Lumbar_Support_Mode);
+                break;
+            case 50:
+                usart_send_data(Softer_Left_Lumbar_Support);
+                break;
+            case 51:
+                usart_send_data(Softer_Right_Lumbar_Support);
+                break;
+            case 52:
+                usart_send_data(Firmer_Left_Lumbar_Support);
+                break;
+            case 53:
+                usart_send_data(Firmer_Right_Lumbar_Support);
+                break;
+            case 54:
+                usart_send_data(Turn_Off_Waist_Support);
+                break;
+            case 55:
+                usart_send_data(Left_Lumbar_Support_Off);
+                break;
+            case 56:
+                usart_send_data(Right_Lumbar_Support_Off);
+                break;
+            case 57:
+                usart_send_data(Heat_On);
+                break;
+            case 58:
+                usart_send_data(Heat_Off);
+                break;
+            case 59:
+
+                break;
+            case 60:
+
+                break;
+            case 61:
+                usart_send_data(Stop);
+                break;
+            case 62:
+                usart_send_data(Head_Massage_On);
+                break;
+            case 63:
+                usart_send_data(Head_Massage_On);
+                break;
+            case 64:
+                usart_send_data(Head_Massage_Off);
+                break;
+            case 65:
+                usart_send_data(Foot_Massage_On);
+                break;
+            case 66:
+                usart_send_data(Foot_Massage_On);
+                break;
+            case 67:
+                usart_send_data(Foot_Massage_Off);
+                break;
+            case 68:
+                usart_send_data(Turn_On_Relaxation);
+                break;
+            case 69:
+                usart_send_data(Turn_Off_Relaxation);
+                break;
+            case 70:
+                usart_send_data(Massage_Mode_One);
+                break;
+            case 71:
+                usart_send_data(Massage_Mode_Two);
+                break;
+            case 72:
+                usart_send_data(Massage_Mode_Three);
+                break;
+            case 73:
+                usart_send_data(Massage_10_Minutes);
+                break;
+            case 74:
+                usart_send_data(Massage_Mode_One);
+                break;
+            case 75:
+                usart_send_data(Massage_Mode_One);
                 break;
             default:
                 break;

@@ -2,11 +2,13 @@
 
 static const char *TAG = "AUDIO_MP3_DECODE";
 
-#define MP3_IN_BUF_SIZE  (1024)
+#define MP3_IN_BUF_SIZE  (2048)
 #define PCM_OUT_BUF_SIZE (4096)
 #define MP3_BASE_PATH    "/spiffs"
 #define MP3_PARTITION    "mp3"
 #define DEFAULT_MP3_FILE "test.mp3"
+
+static SemaphoreHandle_t s_playback_mutex = NULL;
 
 esp_err_t mount_storage_partition(void)
 {
@@ -82,18 +84,21 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
     }
 
     bool audio_info_logged = false;
+    bool decoded_any = false;
+    size_t cached_len = 0;
     ret = ESP_AUDIO_ERR_OK;
 
     while (true) {
-        size_t bytes_read = fread(in_buf, 1, MP3_IN_BUF_SIZE, file);
-        if (bytes_read == 0) {
+        size_t bytes_read = fread(in_buf + cached_len, 1, MP3_IN_BUF_SIZE - cached_len, file);
+        if (bytes_read == 0 && cached_len == 0) {
             break;
         }
 
         esp_audio_dec_in_raw_t raw = {
             .buffer = in_buf,
-            .len = (uint32_t)bytes_read,
+            .len = (uint32_t)(cached_len + bytes_read),
         };
+        cached_len = 0;
 
         while (raw.len > 0) {
             esp_audio_dec_out_frame_t out_frame = {
@@ -117,10 +122,24 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
             }
 
             if (ret == ESP_AUDIO_ERR_DATA_LACK || ret == ESP_AUDIO_ERR_CONTINUE) {
+                if (raw.consumed > 0 && raw.consumed <= raw.len) {
+                    raw.buffer += raw.consumed;
+                    raw.len -= raw.consumed;
+                }
+
+                if (raw.len > 0) {
+                    memmove(in_buf, raw.buffer, raw.len);
+                    cached_len = raw.len;
+                }
                 break;
             }
 
             if (ret != ESP_AUDIO_ERR_OK) {
+                if (decoded_any && ret == ESP_AUDIO_ERR_NOT_SUPPORT) {
+                    ESP_LOGW(TAG, "ignore trailing unsupported MP3 data");
+                    ret = ESP_AUDIO_ERR_OK;
+                    goto cleanup;
+                }
                 ESP_LOGE(TAG, "MP3 decode failed: %d", ret);
                 goto cleanup;
             }
@@ -142,6 +161,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
 
             if (out_frame.decoded_size > 0) {
                 audio_write(out_frame.buffer, out_frame.decoded_size);
+                decoded_any = true;
             }
 
             if (raw.consumed == 0) {
@@ -151,6 +171,14 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
             raw.buffer += raw.consumed;
             raw.len -= raw.consumed;
         }
+
+        if (bytes_read == 0) {
+            break;
+        }
+    }
+
+    if (decoded_any && (ret == ESP_AUDIO_ERR_DATA_LACK || ret == ESP_AUDIO_ERR_CONTINUE)) {
+        ret = ESP_AUDIO_ERR_OK;
     }
 
 cleanup:
@@ -173,6 +201,9 @@ void mp3_player_task(void *pvParameters)
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
         ESP_LOGE(TAG, "failed to open MP3 file: %s", file_path);
+        if (s_playback_mutex != NULL) {
+            xSemaphoreGive(s_playback_mutex);
+        }
         vTaskDelete(NULL);
         return;
     }
@@ -186,7 +217,43 @@ void mp3_player_task(void *pvParameters)
     }
 
     fclose(file);
+    if (s_playback_mutex != NULL) {
+        xSemaphoreGive(s_playback_mutex);
+    }
     vTaskDelete(NULL);
+}
+
+esp_err_t audio_mp3_play_file_async(const char *file_name)
+{
+    if (file_name == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret = mount_storage_partition();
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    if (s_playback_mutex == NULL) {
+        s_playback_mutex = xSemaphoreCreateBinary();
+        if (s_playback_mutex == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+        xSemaphoreGive(s_playback_mutex);
+    }
+
+    if (xSemaphoreTake(s_playback_mutex, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "MP3 playback busy, skip: %s", file_name);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    BaseType_t task_ret = xTaskCreate(mp3_player_task, "mp3_player", 4 * 1024, (void *)file_name, 4, NULL);
+    if (task_ret != pdPASS) {
+        xSemaphoreGive(s_playback_mutex);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
 
 void audio_mp3_decode_task(void)
