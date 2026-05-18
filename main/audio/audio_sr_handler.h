@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "usart/usart_init.h"
+#include "com/com_status.h"
 
 void sr_handler_task(void *pvParam);
 

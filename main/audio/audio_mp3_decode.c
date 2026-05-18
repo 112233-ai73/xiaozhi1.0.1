@@ -1,4 +1,5 @@
 #include "audio_mp3_decode.h"
+#include "com/com_status.h"
 
 static const char *TAG = "AUDIO_MP3_DECODE";
 
@@ -9,6 +10,12 @@ static const char *TAG = "AUDIO_MP3_DECODE";
 #define DEFAULT_MP3_FILE "test.mp3"
 
 static SemaphoreHandle_t s_playback_mutex = NULL;
+static volatile bool s_mp3_playing = false;
+
+bool audio_mp3_is_playing(void)
+{
+    return s_mp3_playing;
+}
 
 esp_err_t mount_storage_partition(void)
 {
@@ -201,6 +208,7 @@ void mp3_player_task(void *pvParameters)
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
         ESP_LOGE(TAG, "failed to open MP3 file: %s", file_path);
+        s_mp3_playing = false;
         if (s_playback_mutex != NULL) {
             xSemaphoreGive(s_playback_mutex);
         }
@@ -217,6 +225,7 @@ void mp3_player_task(void *pvParameters)
     }
 
     fclose(file);
+    s_mp3_playing = false;
     if (s_playback_mutex != NULL) {
         xSemaphoreGive(s_playback_mutex);
     }
@@ -227,6 +236,11 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
 {
     if (file_name == NULL) {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    if (com_status == LISTENING) {
+        ESP_LOGW(TAG, "MultiNet listening, skip MP3: %s", file_name);
+        return ESP_ERR_INVALID_STATE;
     }
 
     esp_err_t ret = mount_storage_partition();
@@ -247,8 +261,11 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
         return ESP_ERR_INVALID_STATE;
     }
 
+    s_mp3_playing = true;
+
     BaseType_t task_ret = xTaskCreate(mp3_player_task, "mp3_player", 4 * 1024, (void *)file_name, 4, NULL);
     if (task_ret != pdPASS) {
+        s_mp3_playing = false;
         xSemaphoreGive(s_playback_mutex);
         return ESP_FAIL;
     }

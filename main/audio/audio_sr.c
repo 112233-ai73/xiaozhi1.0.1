@@ -14,7 +14,6 @@ static volatile bool g_vad_speech = false;
 #define SPEECH_END_TIMEOUT_MS 500
 #define WAKE_WORKING_HOLD_MS 500
 #define NO_SPEECH_IDLE_TIMEOUT_MS 30000
-#define WAKE_ACK_MP3_FILE "105.mp3"
 #define AFE_RINGBUF_FRAME_NUM 8
 
 static TickType_t ms_to_ticks(uint32_t timeout_ms)
@@ -85,9 +84,22 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
+        if (audio_mp3_is_playing())
+        {
+            g_vad_speech = false;
+            continue;
+        }
+
         if ((com_status == IDLE || com_status == START) && res->wakeup_state == WAKENET_DETECTED)
         {
             ESP_LOGI(TAG, "Wakeword detected");
+
+            TickType_t wake_tick = xTaskGetTickCount();
+            com_status_change(WORKING);
+            working_enter_tick = wake_tick;
+            last_voice_tick = wake_tick;
+            speech_end_tick = 0;
+            listening_has_speech = false;
 
             sr_result_t result = {0};
             result.wakenet_mode = WAKENET_DETECTED;
@@ -105,7 +117,6 @@ static void audio_detect_task(void *pvParam)
             last_voice_tick = working_enter_tick;
             speech_end_tick = 0;
             listening_has_speech = false;
-            audio_mp3_play_file_async(WAKE_ACK_MP3_FILE);
             continue;
         }
 
@@ -203,6 +214,13 @@ static void audio_multinet_task(void *arg)
         {
             continue;
         }
+
+        if (audio_mp3_is_playing())
+        {
+            vRingbufferReturnItem(afe_rb_1, audio_data);
+            continue;
+        }
+
         size_t expected_size = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
 
         if (item_size != expected_size)
