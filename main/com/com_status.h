@@ -14,6 +14,8 @@ typedef enum
 extern com_status_t com_status;
 extern bool is_awake;
 
+void com_set_awake(bool awake);
+void com_awake_timeout_check(void);
 
 /**
  * @brief 改变状态

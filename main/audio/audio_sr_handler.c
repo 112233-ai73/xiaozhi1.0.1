@@ -100,15 +100,15 @@ void sr_handler_task(void *pvParam)
                 switch (result.command_id)
                 {
                 case 0:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 1:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 2:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 default:
@@ -117,23 +117,23 @@ void sr_handler_task(void *pvParam)
             }
             else
             {
-                is_awake = true;
+                com_set_awake(true);
                 switch (result.command_id)
                 {
                 case 0:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 1:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 2:
-                    is_awake = true;
+                    com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 3:
-                    is_awake = false;
+                    com_set_awake(false);
                     audio_mp3_play_file_async("106.mp3");
                     com_status_change(IDLE);
                     break;

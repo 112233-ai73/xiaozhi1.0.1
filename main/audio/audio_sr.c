@@ -217,6 +217,7 @@ static void audio_detect_task(void *pvParam)
         }
 
         //log_fetch_result(res);
+        com_awake_timeout_check();
 
         if (audio_mp3_is_playing())
         {
