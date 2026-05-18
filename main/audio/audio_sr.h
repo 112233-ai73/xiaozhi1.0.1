@@ -18,7 +18,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "freertos/ringbuf.h"
 #include "command_word.h"
 #include "audio_sr_handler.h"
 

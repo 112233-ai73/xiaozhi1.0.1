@@ -4,6 +4,7 @@
 #include "esp_log.h"
 
 static const char *TAG = "COM_STATUS";
+bool is_awake = false;
 
 #define WORKING_TO_IDLE_MP3_FILE "106.mp3"
 
@@ -12,7 +13,6 @@ com_status_t com_status = START;
 static const char *com_status_str[] = {
     "START",
     "IDLE",
-    "WORKING",
     "LISTENING",
     "SPEAKING",
 };
@@ -41,7 +41,7 @@ void com_status_change(com_status_t status)
 
     com_status = status;
 
-    if (previous_status == WORKING && status == IDLE)
+    if ( status == IDLE)
     {
         audio_mp3_play_file_async(WORKING_TO_IDLE_MP3_FILE);
     }

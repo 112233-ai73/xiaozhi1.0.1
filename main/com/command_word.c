@@ -1,6 +1,10 @@
 #include "command_word.h"
 
 const char *cmd_phoneme[] = {
+    "xiao zhi xiao zhi",
+    "ni hao xiao zhi",
+    "xiao zhi ni hao",
+    "tui xia xiao zhi",
     "tou bu ling dang",
     "tou bu yi dang",
     "tou bu er dang",

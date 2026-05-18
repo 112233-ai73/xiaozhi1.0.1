@@ -134,7 +134,7 @@ static esp_err_t audio_es7210_init(void)
     // 2. 实例化驱动
     es7210_codec_cfg_t es7210_cfg = {
         .ctrl_if = in_ctrl_if,
-        .mic_selected = ES7210_SEL_MIC1, // 根据原理图选择开启的麦克风
+        .mic_selected = ES7210_SEL_MIC1|ES7210_SEL_MIC2, // 根据原理图选择开启的麦克风
     };
     const audio_codec_if_t *in_codec_if = es7210_codec_new(&es7210_cfg);
 
@@ -158,7 +158,7 @@ static esp_err_t audio_es7210_init(void)
         .channel = 2,
         .sample_rate = 16000};
     ESP_ERROR_CHECK(esp_codec_dev_open(record_dev_handle, &fs));
-    ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(record_dev_handle, 20.0));
+    ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(record_dev_handle, 30.0));
 
     return (record_dev_handle != NULL) ? ESP_OK : ESP_FAIL;
 }

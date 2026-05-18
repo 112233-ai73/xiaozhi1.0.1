@@ -222,6 +222,7 @@ void mp3_player_task(void *pvParameters)
         ESP_LOGE(TAG, "MP3 playback stopped with error: %d", ret);
     } else {
         ESP_LOGI(TAG, "MP3 playback finished");
+        com_status_change(IDLE);
     }
 
     fclose(file);
