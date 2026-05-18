@@ -90,193 +90,50 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
-        if ((com_status == IDLE || com_status == START) && res->wakeup_state == WAKENET_DETECTED)
-        {
-            ESP_LOGI(TAG, "Wakeword detected");
+        if (com_status != START) {
+            esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
 
-            TickType_t wake_tick = xTaskGetTickCount();
-            com_status_change(WORKING);
-            working_enter_tick = wake_tick;
-            last_voice_tick = wake_tick;
-            speech_end_tick = 0;
-            listening_has_speech = false;
+            mn_state = multinet->detect(model_data, res->data);
 
-            sr_result_t result = {0};
-            result.wakenet_mode = WAKENET_DETECTED;
-            result.state = ESP_MN_STATE_DETECTING;
-            result.command_id = 0;
-
-            xQueueSend(g_result_que, &result, 10);
-            continue;
-        }
-        else if ((com_status == IDLE || com_status == START) && res->wakeup_state == WAKENET_CHANNEL_VERIFIED)
-        {
-            ESP_LOGI(TAG, "Channel verified");
-            com_status_change(WORKING);
-            working_enter_tick = xTaskGetTickCount();
-            last_voice_tick = working_enter_tick;
-            speech_end_tick = 0;
-            listening_has_speech = false;
-            continue;
-        }
-
-        TickType_t now = xTaskGetTickCount();
-
-        if (com_status == IDLE || com_status == START)
-        {
-            g_vad_speech = false;
-            continue;
-        }
-
-        if (com_status == LISTENING && res->vad_state == VAD_SPEECH)
-        {
-            last_voice_tick = now;
-        }
-
-        if ((com_status == WORKING || com_status == LISTENING || com_status == SPEAKING) &&
-            last_voice_tick != 0 &&
-            timeout_elapsed(now, last_voice_tick, NO_SPEECH_IDLE_TIMEOUT_MS))
-        {
-            ESP_LOGI(TAG, "no speech for %d ms, enter idle", NO_SPEECH_IDLE_TIMEOUT_MS);
-            com_status_change(IDLE);
-            g_vad_speech = false;
-            listening_has_speech = false;
-            continue;
-        }
-
-        if (com_status == WORKING)
-        {
-            g_vad_speech = false;
-            if (!timeout_elapsed(now, working_enter_tick, WAKE_WORKING_HOLD_MS))
-            {
+            if (ESP_MN_STATE_DETECTING == mn_state) {
                 continue;
             }
 
-            if (res->vad_state == VAD_SPEECH)
-            {
-                ESP_LOGI(TAG, "voice detected, enter listening");
-                com_status_change(LISTENING);
-                last_voice_tick = now;
-                listening_has_speech = true;
-                speech_end_tick = 0;
-            }
-        }
-
-        if (com_status == LISTENING)
-        {
-            g_vad_speech = (res->vad_state == VAD_SPEECH);
-            if (res->vad_state == VAD_SPEECH)
-            {
-                listening_has_speech = true;
-                speech_end_tick = 0;
-                send_afe_data_to_multinet(afe_data, res);
+            if (ESP_MN_STATE_TIMEOUT == mn_state) {
+                ESP_LOGW(TAG, "Time out");
+                sr_result_t result = {
+                    .state = mn_state,
+                    .command_id = 0,
+                };
+                xQueueSend(g_result_que, &result, 10);
+                multinet->clean(model_data);
                 continue;
             }
 
-            if (listening_has_speech)
-            {
-                if (speech_end_tick == 0)
-                {
-                    speech_end_tick = now;
+            if (ESP_MN_STATE_DETECTED == mn_state) {
+                esp_mn_results_t *mn_result = multinet->get_results(model_data);
+                for (int i = 0; i < mn_result->num; i++) {
+                    ESP_LOGI(TAG, "TOP %d, command_id: %d, phrase_id: %d, prob: %f",
+                            i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
                 }
 
-                if (timeout_elapsed(now, speech_end_tick, SPEECH_END_TIMEOUT_MS))
-                {
-                    ESP_LOGI(TAG, "speech ended, enter working");
-                    com_status_change(WORKING);
-                    working_enter_tick = now;
-                    listening_has_speech = false;
-                    speech_end_tick = 0;
-                }
+                int sr_command_id = mn_result->command_id[0];
+                ESP_LOGI(TAG, "Deteted command : %d", sr_command_id);
+                sr_result_t result = {
+                    .state = mn_state,
+                    .command_id = sr_command_id,
+                };
+                xQueueSend(g_result_que, &result, 10);
+#if !SR_CONTINUE_DET
+                multinet->clean(model_data);
+#endif
+                continue;
             }
-        }
-        else if (com_status == SPEAKING)
-        {
-            g_vad_speech = false;
-            send_afe_data_to_multinet(afe_data, res);
+            ESP_LOGE(TAG, "Exception unhandled");
         }
     }
 }
 
-static void audio_multinet_task(void *arg)
-{
-    (void)arg;
-    while (true)
-    {
-        size_t item_size = 0;
-        int16_t *audio_data = (int16_t *)xRingbufferReceive(
-            afe_rb_1,
-            &item_size,
-            portMAX_DELAY);
-
-        
-        if (audio_data == NULL)
-        {
-            continue;
-        }
-
-        if (audio_mp3_is_playing())
-        {
-            vRingbufferReturnItem(afe_rb_1, audio_data);
-            continue;
-        }
-
-        size_t expected_size = multinet->get_samp_chunksize(model_data) * sizeof(int16_t);
-
-        if (item_size != expected_size)
-        {
-            ESP_LOGW(TAG, "unexpected mn data size: %u, expected: %u",
-                     (unsigned int)item_size,
-                     (unsigned int)expected_size);
-            vRingbufferReturnItem(afe_rb_1, audio_data);
-            continue;
-        }
-
-        esp_mn_state_t mn_state = ESP_MN_STATE_DETECTING;
-
-        mn_state = multinet->detect(model_data, audio_data);
-
-        vRingbufferReturnItem(afe_rb_1, audio_data);
-        
-        if (mn_state == ESP_MN_STATE_DETECTING)
-        {
-            continue;
-        }
-
-        if (ESP_MN_STATE_TIMEOUT == mn_state)
-        {
-            ESP_LOGW(TAG, "Time out");
-            sr_result_t result = {
-                .wakenet_mode = WAKENET_NO_DETECT,
-                .state = mn_state,
-                .command_id = -1,
-            };
-            com_status_change(WORKING);
-            xQueueSend(g_result_que, &result, 10);
-            continue;
-        }
-
-        if (ESP_MN_STATE_DETECTED == mn_state)
-        {
-            esp_mn_results_t *mn_result = multinet->get_results(model_data);
-            for (int i = 0; i < mn_result->num; i++)
-            {
-                ESP_LOGI(TAG, "TOP %d, command_id: %d, phrase_id: %d, prob: %f",
-                         i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
-            }
-
-            int sr_command_id = mn_result->command_id[0];
-            ESP_LOGI(TAG, "Deteted command : %d", sr_command_id);
-            sr_result_t result = {
-                .wakenet_mode = WAKENET_NO_DETECT,
-                .state = mn_state,
-                .command_id = sr_command_id,
-            };
-            com_status_change(SPEAKING);
-            xQueueSend(g_result_que, &result, 10);
-        }
-    }
-}
 
 esp_err_t app_sr_start(void)
 {
@@ -289,8 +146,8 @@ esp_err_t app_sr_start(void)
     afe_config_t *afe_config = afe_config_init("MM", models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
     ESP_RETURN_ON_FALSE(NULL != afe_config, ESP_ERR_NO_MEM, TAG, "Failed create AFE config");
 
-    afe_config->wakenet_model_name = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
-    ESP_RETURN_ON_FALSE(NULL != afe_config->wakenet_model_name, ESP_FAIL, TAG, "No wakenet model found");
+    afe_config->wakenet_init = false;
+    afe_config->wakenet_model_name = NULL;
     afe_config->aec_init = true;
     afe_config->vad_init = true;
     afe_config->vad_mode = VAD_MODE_0;
@@ -301,13 +158,6 @@ esp_err_t app_sr_start(void)
 
     esp_afe_sr_data_t *afe_data = afe_handle->create_from_config(afe_config);
     ESP_RETURN_ON_FALSE(NULL != afe_data, ESP_FAIL, TAG, "Failed create AFE data");
-    ESP_LOGI(TAG, "load wakenet:%s", afe_config->wakenet_model_name);
-    char *wake_words = esp_srmodel_get_wake_words(models, afe_config->wakenet_model_name);
-    if (wake_words != NULL)
-    {
-        ESP_LOGI(TAG, "wake words:%s", wake_words);
-        free(wake_words);
-    }
 
     char *mn_name = esp_srmodel_filter(models, ESP_MN_CHINESE, NULL);
     if (mn_name == NULL)
@@ -345,9 +195,6 @@ esp_err_t app_sr_start(void)
 
     ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, NULL, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
-
-    ret_val = xTaskCreatePinnedToCore(audio_multinet_task, "MultiNet Task", 6 * 1024, NULL, 5, NULL, 1);
-    ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create multinet task");
 
     ret_val = xTaskCreatePinnedToCore(sr_handler_task, "SR Handler Task", 4 * 1024, g_result_que, 1, NULL, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG,  "Failed create audio handler task");

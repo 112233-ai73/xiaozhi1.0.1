@@ -87,18 +87,9 @@ void sr_handler_task(void *pvParam)
         sr_result_t result;
         xQueueReceive(xQueue, &result, portMAX_DELAY);
 
-        ESP_LOGI(TAG, "cmd:%d, wakemode:%d,state:%d", result.command_id, result.wakenet_mode, result.state);
-
         if (ESP_MN_STATE_TIMEOUT == result.state)
         {
             ESP_LOGI(TAG, "timeout");
-            continue;
-        }
-
-        if (WAKENET_DETECTED == result.wakenet_mode)
-        {
-            ESP_LOGI(TAG, "wakeword detected");
-            audio_mp3_play_file_async("105.mp3");
             continue;
         }
 

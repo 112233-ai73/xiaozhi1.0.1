@@ -15,7 +15,6 @@
 
 #include "esp_afe_sr_models.h"
 #include "esp_mn_models.h"
-#include "esp_wn_models.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -30,7 +29,6 @@
 #include "esp_process_sdkconfig.h"
 
 typedef struct {
-    wakenet_state_t     wakenet_mode;
     esp_mn_state_t      state;
     int                 command_id;
     float               confidence;
