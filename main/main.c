@@ -21,21 +21,16 @@ void app_main(void)
 
     usart_init();
     ESP_ERROR_CHECK(audio_init());
-    bsp_wifi_init();
-    while (1)
+    // bsp_wifi_init();
+    esp_err_t ret = audio_mp3_play_file_async(STARTUP_MP3_FILE);
+    if (ret != ESP_OK)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_LOGW(TAG, "startup MP3 playback failed: %s", esp_err_to_name(ret));
+    }
+    else
+    {
+        vTaskDelay(pdMS_TO_TICKS(STARTUP_MP3_WAIT_MS));
     }
 
-    // esp_err_t ret = audio_mp3_play_file_async(STARTUP_MP3_FILE);
-    // if (ret != ESP_OK)
-    // {
-    //     ESP_LOGW(TAG, "startup MP3 playback failed: %s", esp_err_to_name(ret));
-    // }
-    // else
-    // {
-    //     vTaskDelay(pdMS_TO_TICKS(STARTUP_MP3_WAIT_MS));
-    // }
-
-    // ESP_ERROR_CHECK(app_sr_start());
+    ESP_ERROR_CHECK(app_sr_start());
 }
