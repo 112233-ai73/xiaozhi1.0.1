@@ -71,15 +71,16 @@ static void configure_afe(afe_config_t *afe_config)
     afe_config->pcm_config.mic_num = 2;
     afe_config->pcm_config.total_ch_num = 2;
     afe_config->se_init = false;
-    afe_config->aec_init = true;
-    afe_config->agc_init = true;
+    afe_config->aec_init = true;               
+    afe_config->ns_init = true;
+    afe_config->afe_ns_mode = AFE_NS_MODE_NET;
     afe_config->agc_compression_gain_db = 15;
     afe_config->agc_target_level_dbfs = 3;
-    afe_config->afe_linear_gain = 2.0;
+    afe_config->afe_linear_gain = 10.0;
     afe_config->wakenet_init = false;
     afe_config->wakenet_model_name = NULL;
     afe_config->vad_init = true;
-    afe_config->vad_mode = VAD_MODE_0;
+    afe_config->vad_mode = VAD_MODE_3;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 }
 
