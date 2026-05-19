@@ -94,20 +94,24 @@ void sr_handler_task(void *pvParam)
         if (ESP_MN_STATE_DETECTED == result.state)
         {
             ESP_LOGI(TAG, "mn detected");
-            com_status_change(SPEAKING);
+            
             if (is_awake == false)
             {
+                
                 switch (result.command_id)
                 {
                 case 0:
+                    com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 1:
+                    com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 2:
+                    com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
@@ -118,6 +122,7 @@ void sr_handler_task(void *pvParam)
             else
             {
                 com_set_awake(true);
+                com_status_change(SPEAKING);
                 switch (result.command_id)
                 {
                 case 0:
