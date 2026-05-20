@@ -114,7 +114,7 @@ static esp_err_t audio_es8311_init(void)
         .sample_rate = 16000};
     ESP_ERROR_CHECK(esp_codec_dev_open(play_dev_handle, &fs));
     // 设置初始音量为 60dB
-    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(play_dev_handle, 100));
+    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(play_dev_handle, 50));
 
     return (play_dev_handle != NULL) ? ESP_OK : ESP_FAIL;
 }
