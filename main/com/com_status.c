@@ -8,7 +8,7 @@
 #define AWAKE_TIMEOUT_US       (30 * 1000 * 1000LL)
 #define SLEEP_PROMPT_MP3_FILE  "106.mp3"
 
-static const char *TAG = "COM_STATUS";
+//static const char *TAG = "COM_STATUS";
 
 com_status_t com_status = START;
 bool is_awake = false;

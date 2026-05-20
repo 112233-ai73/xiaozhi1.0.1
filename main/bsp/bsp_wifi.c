@@ -1,16 +1,13 @@
 #include "bsp_wifi.h"
 #include "com/com_debug.h"
-
-
+#include <stdbool.h>
 
 /* The examples use WiFi configuration that you can set via project configuration menu
 
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define ESP_WIFI_SSID      "abai"
-#define ESP_WIFI_PASS      "xie19991021"
-#define ESP_MAXIMUM_RETRY  5
+#define ESP_MAXIMUM_RETRY 5
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 
 /* FreeRTOS event group to signal when we are connected*/
@@ -20,32 +17,54 @@ static EventGroupHandle_t s_wifi_event_group;
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
+#define WIFI_FAIL_BIT BIT1
 
-static const char *TAG = "wifi station";
+//static const char *TAG = "wifi station";
 
 static int s_retry_num = 0;
+static bool s_uart_provisioning = false;
 
-
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
+static void event_handler(void *arg, esp_event_base_t event_base,
+                          int32_t event_id, void *event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < ESP_MAXIMUM_RETRY) {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    {
+        // esp_wifi_connect();
+        MY_LOGI("WiFi STA Started. Waiting for UART credentials...");
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
+    {
+        if (s_uart_provisioning)
+        {
+            MY_LOGI("UART provisioning is updating WiFi config, skip reconnect");
+            return;
+        }
+
+        if (s_retry_num < 5)
+        {
             esp_wifi_connect();
             s_retry_num++;
             MY_LOGI("retry to connect to the AP");
-        } else {
+        }
+        else
+        {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
         MY_LOGI("connect to the AP fail");
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         MY_LOGI("got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+        wifi_config_t current_config;
+        if (esp_wifi_get_config(WIFI_IF_STA, &current_config) == ESP_OK)
+        {
+            esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+            esp_wifi_set_config(WIFI_IF_STA, &current_config);
+            MY_LOGI("检测到 WiFi 连接成功，配置信息已安全写入 NVS 闪存！");
+        }
     }
 }
 
@@ -74,56 +93,118 @@ void wifi_init_sta(void)
                                                         NULL,
                                                         &instance_got_ip));
 
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
+
+    wifi_config_t saved_config;
+    esp_wifi_get_config(WIFI_IF_STA, &saved_config);
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    if (saved_config.sta.ssid[0] != '\0')
+    {
+        MY_LOGI("NVS 中检测到历史 WiFi,正在尝试自动连接 SSID: %s", saved_config.sta.ssid);
+        s_retry_num = 0;
+        esp_wifi_connect();
+
+        EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                               WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                               pdFALSE, pdFALSE, portMAX_DELAY);
+
+        if (bits & WIFI_CONNECTED_BIT)
+        {
+            MY_LOGI("历史 WiFi 自动重连成功！");
+        }
+        else
+        {
+            MY_LOGW("历史 WiFi 自动重连失败（可能路由器关闭或改密），系统将继续启动，等待串口配网...");
+        }
+    }
+    else
+    {
+        MY_LOGI("NVS 中无保存的 WiFi 信息,跳过自动连接，等待串口配网...");
+    }
+}
+
+void bsp_wifi_start_connect(const char *ssid, const char *password)
+{
+    esp_err_t ret;
+
+    MY_LOGI("收到串口配网请求，准备连接 SSID: %s, PWD: %s", ssid, password);
+    s_retry_num = 0;
+    s_uart_provisioning = true;
+
+    if (s_wifi_event_group != NULL)
+    {
+        xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+    }
+
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = ESP_WIFI_SSID,
-            .password = ESP_WIFI_PASS,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
-            .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
 
-    MY_LOGI("wifi_init_sta finished.");
+    strlcpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
+    strlcpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password));
 
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-            pdFALSE,
-            pdFALSE,
-            portMAX_DELAY);
-
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    if (bits & WIFI_CONNECTED_BIT) {
-        MY_LOGI("connected to ap SSID:%s password:%s",
-                 ESP_WIFI_SSID, ESP_WIFI_PASS);
-    } else if (bits & WIFI_FAIL_BIT) {
-        MY_LOGI("Failed to connect to SSID:%s, password:%s",
-                 ESP_WIFI_SSID, ESP_WIFI_PASS);
-    } else {
-        MY_LOGE("UNEXPECTED EVENT");
+    ret = esp_wifi_disconnect();
+    if (ret != ESP_OK && ret != ESP_ERR_WIFI_NOT_CONNECT)
+    {
+        MY_LOGW("esp_wifi_disconnect failed: %s", esp_err_to_name(ret));
     }
+
+    ret = esp_wifi_stop();
+    if (ret != ESP_OK && ret != ESP_ERR_WIFI_NOT_STARTED)
+    {
+        MY_LOGW("esp_wifi_stop failed: %s", esp_err_to_name(ret));
+    }
+
+    ret = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    if (ret != ESP_OK)
+    {
+        MY_LOGE("esp_wifi_set_storage failed: %s", esp_err_to_name(ret));
+        s_uart_provisioning = false;
+        return;
+    }
+
+    ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    if (ret != ESP_OK)
+    {
+        MY_LOGE("esp_wifi_set_config failed: %s", esp_err_to_name(ret));
+        s_uart_provisioning = false;
+        return;
+    }
+
+    ret = esp_wifi_start();
+    if (ret != ESP_OK)
+    {
+        MY_LOGE("esp_wifi_start failed: %s", esp_err_to_name(ret));
+        s_uart_provisioning = false;
+        return;
+    }
+
+    ret = esp_wifi_connect();
+    if (ret != ESP_OK)
+    {
+        MY_LOGE("esp_wifi_connect failed: %s", esp_err_to_name(ret));
+    }
+
+    s_uart_provisioning = false;
 }
 
 void bsp_wifi_init(void)
 {
-    //Initialize NVS
+    // Initialize NVS
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
 
-    if (CONFIG_LOG_MAXIMUM_LEVEL > CONFIG_LOG_DEFAULT_LEVEL) {
+    if (CONFIG_LOG_MAXIMUM_LEVEL > CONFIG_LOG_DEFAULT_LEVEL)
+    {
         /* If you only want to open more logs in the wifi module, you need to make the max level greater than the default level,
          * and call esp_log_level_set() before esp_wifi_init() to improve the log level of the wifi module. */
         esp_log_level_set("wifi", CONFIG_LOG_MAXIMUM_LEVEL);

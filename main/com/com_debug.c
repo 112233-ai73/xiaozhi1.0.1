@@ -1,2 +1,2 @@
 #include "com_debug.h"
-char tag[100];
+char TAG[100];

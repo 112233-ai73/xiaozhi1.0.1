@@ -1,7 +1,7 @@
 #include "audio_sr_handler.h"
 #include "com/com_debug.h"
 
-static const char *TAG = "audio_sr_handler";
+//static const char *TAG = "audio_sr_handler";
 
 uint8_t Sleep_Mode[] = {0xAA, 0x06, 0x14, 0x02, 0x00, 0xBA};
 uint8_t Relax_Mode[] = {0xAA, 0x06, 0x14, 0x04, 0x00, 0xBC};
@@ -68,7 +68,6 @@ uint8_t Foot_Nine[] = {0xAA, 0x08, 0x0C, 0xFF, 0xFF, 0x12, 0xFF, 0x43};
 uint8_t Foot_Ten[] = {0xAA, 0x08, 0x0C, 0xFF, 0xFF, 0x14, 0xFF, 0x45};
 uint8_t Volume_up[] = {0xAA, 0x05, 0x3D, 0x01, 0x93};
 uint8_t Volume_down[] = {0xAA, 0x05, 0x3D, 0x02, 0x90};
-uint8_t Memory_Mode_Flat[] = {0xAA, 0x06, 0x14, 0x01, 0x00, 0xB9};
 uint8_t Memory_Leisure_Mode[] = {0xAA, 0x06, 0x14, 0x03, 0x00, 0xBB};
 uint8_t Memory_DeepSleep_Mode[] = {0xAA, 0x06, 0x14, 0x05, 0x00, 0xBD};
 uint8_t Memory_SleepAid_Mode[] = {0xAA, 0x06, 0x14, 0x0E, 0x00, 0xB6};
@@ -284,8 +283,8 @@ void sr_handler_task(void *pvParam)
                     audio_mp3_play_file_async("129.mp3");
                     break;
                 case 39:
-                    usart_send_data(Memory_Mode_Flat);
-
+                    usart_send_data(Sleep_Mode);
+                    audio_mp3_play_file_async("129.mp3");
                     break;
                 case 40:
                     usart_send_data(Relax_Mode);
@@ -329,30 +328,39 @@ void sr_handler_task(void *pvParam)
                     break;
                 case 50:
                     usart_send_data(Softer_Lumbar_Support);
+                    audio_mp3_play_file_async("140.mp3");
                     break;
                 case 51:
                     usart_send_data(Firmer_Lumbar_Support);
+                    audio_mp3_play_file_async("140.mp3");
                     break;
                 case 52:
                     usart_send_data(Left_Lumbar_Support_Mode);
+                    audio_mp3_play_file_async("141.mp3");
                     break;
                 case 53:
                     usart_send_data(Right_Lumbar_Support_Mode);
+                    audio_mp3_play_file_async("142.mp3");
                     break;
                 case 54:
                     usart_send_data(Softer_Left_Lumbar_Support);
+                    audio_mp3_play_file_async("141.mp3");
                     break;
                 case 55:
                     usart_send_data(Softer_Right_Lumbar_Support);
+                    audio_mp3_play_file_async("142.mp3");
                     break;
                 case 56:
                     usart_send_data(Firmer_Left_Lumbar_Support);
+                    audio_mp3_play_file_async("141.mp3");
                     break;
                 case 57:
                     usart_send_data(Firmer_Right_Lumbar_Support);
+                    audio_mp3_play_file_async("142.mp3");
                     break;
                 case 58:
                     usart_send_data(Turn_Off_Waist_Support);
+                    audio_mp3_play_file_async("143.mp3");
                     break;
                 case 59:
                     usart_send_data(Left_Lumbar_Support_Off);

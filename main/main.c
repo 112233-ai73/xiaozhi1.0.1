@@ -11,7 +11,7 @@
 #include "bsp/bsp_wifi.h"
 
 
-static const char *TAG = "SR_TEST";
+//static const char *TAG = "SR_TEST";
 
 #define STARTUP_MP3_FILE "107.mp3"
 #define STARTUP_MP3_WAIT_MS 7500
@@ -19,7 +19,7 @@ static const char *TAG = "SR_TEST";
 void app_main(void)
 {
     MY_LOGI("speech recognition test start");
-
+    bsp_wifi_init();
     usart_init();
     ESP_ERROR_CHECK(audio_init());
     // bsp_wifi_init();

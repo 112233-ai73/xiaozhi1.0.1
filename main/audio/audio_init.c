@@ -1,7 +1,7 @@
 #include "audio_init.h"
 #include "com/com_debug.h"
 
-static const char *TAG = "AUDIO_INIT";
+//static const char *TAG = "AUDIO_INIT";
 
 // 静态句柄
 static i2c_master_bus_handle_t i2c_bus_handle = NULL;

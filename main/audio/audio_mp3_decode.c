@@ -2,7 +2,7 @@
 #include "com/com_status.h"
 #include "com/com_debug.h"
 
-static const char *TAG = "AUDIO_MP3_DECODE";
+//static const char *TAG = "AUDIO_MP3_DECODE";
 
 #define MP3_IN_BUF_SIZE  (2048)
 #define PCM_OUT_BUF_SIZE (4096)

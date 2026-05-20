@@ -7,6 +7,7 @@
 #include "driver/uart.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "bsp_wifi.h"
 
 #define UART_NUM       UART_NUM_0
 #define UART_TX_IO     GPIO_NUM_43

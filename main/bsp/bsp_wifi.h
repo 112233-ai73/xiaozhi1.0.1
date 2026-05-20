@@ -16,4 +16,6 @@
 
 void bsp_wifi_init(void);
 
+void bsp_wifi_start_connect(const char *ssid, const char *password);
+
 #endif /* __BSP_WIFI_H__ */

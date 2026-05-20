@@ -157,12 +157,12 @@ git ls-files --others --exclude-standard
 如果用户要求“生成文档”“保存文档”“存到 skills 文件夹”或类似表达，直接把生成结果保存为 Markdown 文件：
 
 ```text
-.codex/skills/gen-changelog/output/<主题名>.md
+.codex/skills/gen-changelog/output/<月日小时>.md
 ```
 
 命名规则：
 
-- 文件名使用英文、小写、短横线，例如 `current-change-note.md`。
 - 如果用户指定名称，优先使用用户指定名称。
-- 如果没有指定名称，按内容选择名称，例如 `voice-state-change.md`、`current-change-note.md`、`removable-code-analysis.md`。
+- 如果没有指定名称，文件名使用生成文档时的当前月份、日期、小时，格式为 `MMddHH.md`，例如 5 月 20 日 14 点生成 `052014.md`。
+- 时间以当前运行环境的本地时间为准；月份、日期、小时均使用两位数字，不足两位时前面补 `0`。
 - 保存后在回复中给出文件路径，并简要说明文档主题。

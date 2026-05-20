@@ -6,7 +6,7 @@
 #include "freertos/task.h"
 #include <stdio.h>
 
-static const char *TAG = "USART";
+//static const char *TAG = "USART";
 
 #define USART_LOG_HEX_MAX_BYTES 32
 #define USART_MAX_PACKET_BYTES 255
@@ -82,6 +82,68 @@ void usart_send_data(const uint8_t *data)
     MY_LOGI("USART send len=%u written=%d data=[%s]", len, written, hex_buf);
 }
 
+static void process_wifi_fragments(uint8_t cmd_id, uint8_t seq, const uint8_t *data, uint8_t data_len)
+{
+    // 使用 32 字节的数组，保证最后一位绝对能留给 '\0'
+    static uint8_t wifi_ssid[32] = {0};
+    static uint8_t wifi_pwd[32] = {0};
+    static uint8_t wifi_packet_mask = 0x00;
+
+    // 防卡死机制：收到第一包账号时，强制重置状态
+    if (cmd_id == 0x00 && seq == 0x01)
+    {
+        wifi_packet_mask = 0x00;
+        memset(wifi_ssid, 0, sizeof(wifi_ssid));
+        memset(wifi_pwd, 0, sizeof(wifi_pwd));
+    }
+
+    uint8_t *target_buf = (cmd_id == 0x00) ? wifi_ssid : wifi_pwd;
+    uint8_t bit_offset = (cmd_id == 0x00) ? 0 : 2;
+    int start_index = (seq == 0x01) ? 0 : 15;
+    bool early_stop = false;
+
+    // 安全拷贝（遇 0x00 截断）
+    for (int i = 0; i < data_len && i < 15; i++)
+    {
+        target_buf[start_index + i] = data[i];
+        if (data[i] == 0x00)
+        {
+            early_stop = true;
+            break;
+        }
+    }
+
+    // 更新进度灯
+    if (seq == 0x01)
+    {
+        wifi_packet_mask |= (1 << bit_offset);
+        if (early_stop)
+        {
+            wifi_packet_mask |= (1 << (bit_offset + 1)); // 提前点亮第二包的灯
+        }
+    }
+    else if (seq == 0x02)
+    {
+        wifi_packet_mask |= (1 << (bit_offset + 1));
+    }
+
+    // 检查拼图是否完成
+    if (wifi_packet_mask == 0x0F)
+    {
+        // 安全锁：在数组最后强行补 '\0'
+        wifi_ssid[31] = '\0';
+        wifi_pwd[31] = '\0';
+
+        MY_LOGI("WiFi puzzle complete! Triggering connection...");
+
+        // 调用 WiFi 模块的接口，传入解析好的干净字符串
+        bsp_wifi_start_connect((const char *)wifi_ssid, (const char *)wifi_pwd);
+
+        // 清理现场
+        wifi_packet_mask = 0x00;
+    }
+}
+
 static void usart_receive_callback(void)
 {
     uint8_t temp_byte;
@@ -128,6 +190,24 @@ static void usart_receive_callback(void)
             {
                 MY_LOGI("checksum passed, command=0x%02X", full_packet[2]);
                 usart_log_received_packet(full_packet, packet_len);
+
+                uint8_t cmd_id = full_packet[2];
+
+                if (cmd_id == 0x00 || cmd_id == 0x02)
+                {
+
+                    if (packet_len >= 5)
+                    {
+                        uint8_t seq = full_packet[3];
+                        uint8_t *data_payload = &full_packet[4];
+                        uint8_t data_len = packet_len - 5;
+
+                        process_wifi_fragments(cmd_id, seq, data_payload, data_len);
+                    }
+                }
+                else if (cmd_id == 0x03)
+                {
+                }
             }
             else
             {

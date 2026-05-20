@@ -1,7 +1,7 @@
 #include "audio_sr.h"
 #include "com/com_debug.h"
 
-static const char *TAG = "AUDIO_SR";
+//static const char *TAG = "AUDIO_SR";
 
 static model_iface_data_t *model_data = NULL;
 static const esp_mn_iface_t *multinet = NULL;
