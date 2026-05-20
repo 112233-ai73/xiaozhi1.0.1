@@ -1,4 +1,5 @@
 #include "com_status.h"
+#include "com/com_debug.h"
 
 #include "audio/audio_mp3_decode.h"
 #include "esp_log.h"
@@ -50,7 +51,7 @@ void com_set_awake(bool awake)
     }
 
     is_awake = awake;
-    ESP_LOGI(TAG, "is_awake=%s", is_awake ? "true" : "false");
+    MY_LOGI("is_awake=%s", is_awake ? "true" : "false");
 
     if (is_awake && com_status != SPEAKING) {
         com_awake_timer_start();
@@ -68,7 +69,7 @@ void com_status_change(com_status_t status)
     }
 
     com_status = status;
-    ESP_LOGI(TAG, "status change: %s -> %s",
+    MY_LOGI("status change: %s -> %s",
              com_status_to_str(previous_status),
              com_status_to_str(status));
 
@@ -93,7 +94,7 @@ void com_awake_timeout_check(void)
         return;
     }
 
-    ESP_LOGI(TAG, "awake timeout, set is_awake=false");
+    MY_LOGI("awake timeout, set is_awake=false");
     if (com_status == LISTENING) {
         com_status_change(IDLE);
     }

@@ -1,4 +1,5 @@
 #include "audio_init.h"
+#include "com/com_debug.h"
 
 static const char *TAG = "AUDIO_INIT";
 
@@ -168,21 +169,21 @@ static esp_err_t audio_es7210_init(void)
  */
 esp_err_t audio_init(void)
 {
-    ESP_LOGI(TAG, "Initializing Audio Hardware...");
+    MY_LOGI("Initializing Audio Hardware...");
 
     ESP_ERROR_CHECK(audio_i2c_init());
-    ESP_LOGD(TAG, "Step 1: I2C Initialized");
+    MY_LOGD("Step 1: I2C Initialized");
 
     ESP_ERROR_CHECK(audio_i2s_init());
-    ESP_LOGD(TAG, "Step 2: I2S Initialized");
+    MY_LOGD("Step 2: I2S Initialized");
 
     ESP_ERROR_CHECK(audio_es8311_init());
-    ESP_LOGD(TAG, "Step 3: ES8311 Initialized");
+    MY_LOGD("Step 3: ES8311 Initialized");
 
     ESP_ERROR_CHECK(audio_es7210_init());
-    ESP_LOGD(TAG, "Step 4: ES7210 Initialized");
+    MY_LOGD("Step 4: ES7210 Initialized");
 
-    ESP_LOGI(TAG, "Audio System Started Successfully.");
+    MY_LOGI("Audio System Started Successfully.");
 // 在 audio_init 函数末尾添加
 gpio_config_t pa_conf = {
     .pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN),

@@ -13,7 +13,7 @@
 #define UART_RX_IO     GPIO_NUM_44          //  RX 引脚号
 #define UART_BAUD_RATE (115200)        // 波特率
 #define UART_BUF_SIZE  (1024)          // 接收缓存区大小
-#define FRAME_HEADER_BB 0xBB
+#define FRAME_HEADER_CMD 0xAA
 
 /**
  * @brief 初始化 USART 串口

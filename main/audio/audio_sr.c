@@ -1,4 +1,5 @@
 #include "audio_sr.h"
+#include "com/com_debug.h"
 
 static const char *TAG = "AUDIO_SR";
 
@@ -43,7 +44,7 @@ static void switch_to_listening(void)
 {
     if (com_status != LISTENING)
     {
-        ESP_LOGI(TAG, "voice detected, enter listening");
+        MY_LOGI("voice detected, enter listening");
         clean_multinet();
         com_status_change(LISTENING);
     }
@@ -61,7 +62,7 @@ static void send_sr_result(esp_mn_state_t state, int command_id)
 
 // static void log_fetch_result(const afe_fetch_result_t *res)
 // {
-//     ESP_LOGI(TAG, "VAD: %d, sample: %d",
+//     MY_LOGI("VAD: %d, sample: %d",
 //              res->vad_state,
 //              res->data != NULL ? res->data[0] : 0);
 // }
@@ -89,7 +90,7 @@ static esp_err_t load_multinet_model(void)
     char *mn_name = esp_srmodel_filter(models, ESP_MN_CHINESE, NULL);
     if (mn_name == NULL)
     {
-        ESP_LOGE(TAG, "No multinet model found");
+        MY_LOGE("No multinet model found");
         return ESP_FAIL;
     }
 
@@ -98,7 +99,7 @@ static esp_err_t load_multinet_model(void)
 
     model_data = multinet->create(mn_name, MULTINET_TIMEOUT_MS);
     ESP_RETURN_ON_FALSE(NULL != model_data, ESP_FAIL, TAG, "Failed create multinet data");
-    ESP_LOGI(TAG, "load multinet:%s", mn_name);
+    MY_LOGI("load multinet:%s", mn_name);
 
     return ESP_OK;
 }
@@ -126,7 +127,7 @@ static void audio_feed_task(void *arg)
     int16_t *feed_buff = (int16_t *)malloc(feed_size);
     if (feed_buff == NULL)
     {
-        ESP_LOGE(TAG, "malloc feed buffer failed");
+        MY_LOGE("malloc feed buffer failed");
         vTaskDelete(NULL);
         return;
     }
@@ -156,7 +157,7 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
 
     if (com_status == LISTENING && timeout_elapsed(now, *last_voice_tick, VAD_IDLE_TIMEOUT_MS))
     {
-        ESP_LOGI(TAG, "voice idle timeout, back to idle");
+        MY_LOGI("voice idle timeout, back to idle");
         switch_to_idle();
         return false;
     }
@@ -175,7 +176,7 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
 
     if (ESP_MN_STATE_TIMEOUT == mn_state)
     {
-        ESP_LOGW(TAG, "Time out");
+        MY_LOGW("Time out");
         send_sr_result(mn_state, 0);
         switch_to_idle();
         return;
@@ -186,12 +187,12 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
         esp_mn_results_t *mn_result = multinet->get_results(model_data);
         for (int i = 0; i < mn_result->num; i++)
         {
-            ESP_LOGI(TAG, "TOP %d, command_id: %d, phrase_id: %d, prob: %f",
+            MY_LOGI("TOP %d, command_id: %d, phrase_id: %d, prob: %f",
                      i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
         }
 
         int sr_command_id = mn_result->command_id[0];
-        ESP_LOGI(TAG, "Deteted command : %d", sr_command_id);
+        MY_LOGI("Deteted command : %d", sr_command_id);
         send_sr_result(mn_state, sr_command_id);
 #if !SR_CONTINUE_DET
         clean_multinet();
@@ -199,7 +200,7 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
         return;
     }
 
-    ESP_LOGE(TAG, "Exception unhandled");
+    MY_LOGE("Exception unhandled");
 }
 
 static void audio_detect_task(void *pvParam)
@@ -217,7 +218,7 @@ static void audio_detect_task(void *pvParam)
         afe_fetch_result_t *res = afe_handle->fetch(afe_data);
         if (!res || res->ret_value == ESP_FAIL)
         {
-            ESP_LOGE(TAG, "fetch error!");
+            MY_LOGE("fetch error!");
             continue;
         }
 

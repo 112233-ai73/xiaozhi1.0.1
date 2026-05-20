@@ -1,5 +1,6 @@
 #include "audio_mp3_decode.h"
 #include "com/com_status.h"
+#include "com/com_debug.h"
 
 static const char *TAG = "AUDIO_MP3_DECODE";
 
@@ -19,7 +20,7 @@ bool audio_mp3_is_playing(void)
 
 esp_err_t mount_storage_partition(void)
 {
-    ESP_LOGI(TAG, "mounting SPIFFS partition...");
+    MY_LOGI("mounting SPIFFS partition...");
 
     esp_vfs_spiffs_conf_t conf = {
         .base_path = MP3_BASE_PATH,
@@ -30,17 +31,17 @@ esp_err_t mount_storage_partition(void)
 
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
     if (ret == ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "SPIFFS already mounted");
+        MY_LOGW("SPIFFS already mounted");
         return ESP_OK;
     }
 
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "failed to mount or format SPIFFS");
+            MY_LOGE("failed to mount or format SPIFFS");
         } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "failed to find SPIFFS partition: %s", MP3_PARTITION);
+            MY_LOGE("failed to find SPIFFS partition: %s", MP3_PARTITION);
         } else {
-            ESP_LOGE(TAG, "SPIFFS init failed: %s", esp_err_to_name(ret));
+            MY_LOGE("SPIFFS init failed: %s", esp_err_to_name(ret));
         }
         return ret;
     }
@@ -49,7 +50,7 @@ esp_err_t mount_storage_partition(void)
     size_t used = 0;
     ret = esp_spiffs_info(MP3_PARTITION, &total, &used);
     if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "SPIFFS size: total=%u KB, used=%u KB",
+        MY_LOGI("SPIFFS size: total=%u KB, used=%u KB",
                  (unsigned int)(total / 1024),
                  (unsigned int)(used / 1024));
     }
@@ -61,7 +62,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
 {
     esp_audio_err_t ret = esp_audio_dec_register_default();
     if (ret != ESP_AUDIO_ERR_OK && ret != ESP_AUDIO_ERR_ALREADY_EXIST) {
-        ESP_LOGE(TAG, "register audio decoders failed: %d", ret);
+        MY_LOGE("register audio decoders failed: %d", ret);
         return ret;
     }
 
@@ -74,7 +75,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
     esp_audio_dec_handle_t decoder = NULL;
     ret = esp_audio_dec_open(&dec_cfg, &decoder);
     if (ret != ESP_AUDIO_ERR_OK) {
-        ESP_LOGE(TAG, "open MP3 decoder failed: %d", ret);
+        MY_LOGE("open MP3 decoder failed: %d", ret);
         return ret;
     }
 
@@ -83,7 +84,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
     uint32_t out_buf_size = PCM_OUT_BUF_SIZE;
 
     if (in_buf == NULL || out_buf == NULL) {
-        ESP_LOGE(TAG, "malloc MP3 buffers failed");
+        MY_LOGE("malloc MP3 buffers failed");
         free(in_buf);
         free(out_buf);
         esp_audio_dec_close(decoder);
@@ -117,7 +118,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
             if (ret == ESP_AUDIO_ERR_BUFF_NOT_ENOUGH) {
                 uint8_t *new_out_buf = (uint8_t *)realloc(out_buf, out_frame.needed_size);
                 if (new_out_buf == NULL) {
-                    ESP_LOGE(TAG, "realloc output buffer failed, needed=%u",
+                    MY_LOGE("realloc output buffer failed, needed=%u",
                              (unsigned int)out_frame.needed_size);
                     ret = ESP_AUDIO_ERR_MEM_LACK;
                     goto cleanup;
@@ -143,24 +144,24 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
 
             if (ret != ESP_AUDIO_ERR_OK) {
                 if (decoded_any && ret == ESP_AUDIO_ERR_NOT_SUPPORT) {
-                    ESP_LOGW(TAG, "ignore trailing unsupported MP3 data");
+                    MY_LOGW("ignore trailing unsupported MP3 data");
                     ret = ESP_AUDIO_ERR_OK;
                     goto cleanup;
                 }
-                ESP_LOGE(TAG, "MP3 decode failed: %d", ret);
+                MY_LOGE("MP3 decode failed: %d", ret);
                 goto cleanup;
             }
 
             if (!audio_info_logged) {
                 esp_audio_dec_info_t info = {0};
                 if (esp_audio_dec_get_info(decoder, &info) == ESP_AUDIO_ERR_OK) {
-                    ESP_LOGI(TAG, "MP3 info: %lu Hz, %u channel, %u bit",
+                    MY_LOGI("MP3 info: %lu Hz, %u channel, %u bit",
                              (unsigned long)info.sample_rate,
                              (unsigned int)info.channel,
                              (unsigned int)info.bits_per_sample);
 
                     if (info.sample_rate != 16000 || info.channel != 1 || info.bits_per_sample != 16) {
-                        ESP_LOGW(TAG, "audio output is configured for 16 kHz, 16-bit, mono");
+                        MY_LOGW("audio output is configured for 16 kHz, 16-bit, mono");
                     }
                 }
                 audio_info_logged = true;
@@ -207,7 +208,7 @@ void mp3_player_task(void *pvParameters)
 
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
-        ESP_LOGE(TAG, "failed to open MP3 file: %s", file_path);
+        MY_LOGE("failed to open MP3 file: %s", file_path);
         s_mp3_playing = false;
         if (s_playback_mutex != NULL) {
             xSemaphoreGive(s_playback_mutex);
@@ -216,12 +217,12 @@ void mp3_player_task(void *pvParameters)
         return;
     }
 
-    ESP_LOGI(TAG, "start MP3 playback: %s", file_path);
+    MY_LOGI("start MP3 playback: %s", file_path);
     esp_audio_err_t ret = mp3_decode_file(file);
     if (ret != ESP_AUDIO_ERR_OK) {
-        ESP_LOGE(TAG, "MP3 playback stopped with error: %d", ret);
+        MY_LOGE("MP3 playback stopped with error: %d", ret);
     } else {
-        ESP_LOGI(TAG, "MP3 playback finished");
+        MY_LOGI("MP3 playback finished");
         com_status_change(IDLE);
     }
 
@@ -240,7 +241,7 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
     }
 
     if (com_status == LISTENING) {
-        ESP_LOGW(TAG, "MultiNet listening, skip MP3: %s", file_name);
+        MY_LOGW("MultiNet listening, skip MP3: %s", file_name);
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -258,7 +259,7 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
     }
 
     if (xSemaphoreTake(s_playback_mutex, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "MP3 playback busy, skip: %s", file_name);
+        MY_LOGW("MP3 playback busy, skip: %s", file_name);
         return ESP_ERR_INVALID_STATE;
     }
 

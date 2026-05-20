@@ -1,4 +1,5 @@
 #include "usart_init.h"
+#include "com/com_debug.h"
 
 #include <stdio.h>
 
@@ -54,13 +55,13 @@ void usart_init(void)
 void usart_send_data(const uint8_t *data)
 {
     if (data == NULL) {
-        ESP_LOGW(TAG, "USART send ignored: data is NULL");
+        MY_LOGW("USART send ignored: data is NULL");
         return;
     }
 
     uint8_t len = data[1];
     if (len < 3 || len > UART_BUF_SIZE) {
-        ESP_LOGW(TAG, "USART send ignored: invalid len=%u", len);
+        MY_LOGW("USART send ignored: invalid len=%u", len);
         return;
     }
 
@@ -78,7 +79,7 @@ void usart_send_data(const uint8_t *data)
     }
 
     int written = uart_write_bytes(UART_NUM, data, len);
-    ESP_LOGI(TAG, "USART send len=%u written=%d data=[%s]", len, written, hex_buf);
+    MY_LOGI("USART send len=%u written=%d data=[%s]", len, written, hex_buf);
 }
 
 /**
@@ -94,7 +95,7 @@ void usart_receive_task(void *pvParameters) {
     while (1) {
         // 1. 寻找帧头 0xBB
         if (uart_read_bytes(UART_NUM, &temp_byte, 1, portMAX_DELAY) > 0) {
-            if (temp_byte != FRAME_HEADER_BB) continue;
+            if (temp_byte != FRAME_HEADER_CMD) continue;
 
             full_packet[0] = temp_byte; // 存入帧头
 
@@ -105,7 +106,7 @@ void usart_receive_task(void *pvParameters) {
 
             // 安全检查：防止长度位异常导致缓冲区溢出
             if (packet_len < 3) {
-                ESP_LOGW(TAG, "非法的包长度: %d", packet_len);
+                MY_LOGW("非法的包长度: %d", packet_len);
                 continue;
             }
 
@@ -121,10 +122,10 @@ void usart_receive_task(void *pvParameters) {
                 uint8_t received_xor = full_packet[packet_len - 1];
 
                 if (calculated_xor == received_xor) {
-                    ESP_LOGI(TAG, "校验通过！收到有效指令: 0x%02X", full_packet[2]);
+                    MY_LOGI("校验通过！收到有效指令: 0x%02X", full_packet[2]);
                     // 在这里处理业务逻辑，例如解析 full_packet[2] 之后的 data
                 } else {
-                    ESP_LOGW(TAG, "校验失败！计算值: 0x%02X, 收到值: 0x%02X", calculated_xor, received_xor);
+                    MY_LOGW("校验失败！计算值: 0x%02X, 收到值: 0x%02X", calculated_xor, received_xor);
                 }
             }
         }

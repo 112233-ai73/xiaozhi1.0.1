@@ -6,7 +6,7 @@
 #include "esp_task.h"
 
 // 选择开发环境和生产环境
-#define DEBUG 1
+#define DEBUG 0
 
 extern char tag[100];
 #if (DEBUG == 1)

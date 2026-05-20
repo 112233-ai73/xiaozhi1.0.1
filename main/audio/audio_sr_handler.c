@@ -1,4 +1,5 @@
 #include "audio_sr_handler.h"
+#include "com/com_debug.h"
 
 static const char *TAG = "audio_sr_handler";
 
@@ -87,13 +88,13 @@ void sr_handler_task(void *pvParam)
 
         if (ESP_MN_STATE_TIMEOUT == result.state)
         {
-            ESP_LOGI(TAG, "timeout");
+            MY_LOGI("timeout");
             continue;
         }
 
         if (ESP_MN_STATE_DETECTED == result.state)
         {
-            ESP_LOGI(TAG, "mn detected");
+            MY_LOGI("mn detected");
             
             if (is_awake == false)
             {
