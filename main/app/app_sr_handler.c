@@ -1,7 +1,7 @@
-#include "audio_sr_handler.h"
+#include "app_sr_handler.h"
 #include "com/com_debug.h"
 
-//static const char *TAG = "audio_sr_handler";
+//static const char *TAG = "app_sr_handler";
 
 uint8_t Sleep_Mode[] = {0xAA, 0x06, 0x14, 0x02, 0x00, 0xBA};
 uint8_t Relax_Mode[] = {0xAA, 0x06, 0x14, 0x04, 0x00, 0xBC};

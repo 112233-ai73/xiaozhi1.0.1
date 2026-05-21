@@ -1,21 +1,15 @@
 #include "bsp_sdcard.h"
 #include "com/com_debug.h"
 
-
-
-
 //static const char *TAG = "SD_SPI";
 
 #define MOUNT_POINT "/sdcard"
 
-// ---------------------------------------------------------
-// 1. 在这里写死你的 SPI 引脚 (请根据 ESP32-S3 实际接线修改!)
-// ---------------------------------------------------------
-#define PIN_NUM_MISO  13  // 主设备输入，从设备输出 (SD 卡的 DO)
-#define PIN_NUM_MOSI  11  // 主设备输出，从设备输入 (SD 卡的 DI)
-#define PIN_NUM_CLK   12  // 时钟线 (SD 卡的 SCK)
-#define PIN_NUM_CS    10  // 片选线 (SD 卡的 CS)
-// ---------------------------------------------------------
+#define PIN_NUM_MISO  GPIO_NUM_15  
+#define PIN_NUM_MOSI  GPIO_NUM_6  
+#define PIN_NUM_CLK   GPIO_NUM_7  
+#define PIN_NUM_CS    GPIO_NUM_5  
+
 
 // --- 写入文本文件 ---
 esp_err_t sd_write_text_file(const char *path, const char *data)

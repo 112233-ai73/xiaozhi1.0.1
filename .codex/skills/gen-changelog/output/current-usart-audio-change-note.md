@@ -96,7 +96,7 @@ UART 驱动事件队列
 `usart_receive_callback()` 的接收解析流程如下：
 
 1. 通过 `uart_get_buffered_data_len()` 查询 UART RX buffer 中是否还有数据。
-2. 非阻塞读取 1 字节，查找 `FRAME_HEADER_CMD`。
+2. 非阻塞读取 1 字节，查找 `FRAME_HEADER_A`。
 3. 读取长度字节 `packet_len`。
 4. 判断 `packet_len < 3` 时丢弃并记录警告。
 5. 读取剩余 `packet_len - 2` 字节。
@@ -203,7 +203,7 @@ idf.py build
 
 ### USART 功能验证
 
-1. 发送合法报文：`FRAME_HEADER_CMD`、长度、命令、数据、XOR 校验位。
+1. 发送合法报文：`FRAME_HEADER_A`、长度、命令、数据、XOR 校验位。
 2. 观察日志中出现 `checksum passed, command=0xXX`。
 3. 观察日志中出现 `USART recv command packet len=... data=[...]`。
 4. 发送错误校验位报文，确认日志出现 `checksum failed`。

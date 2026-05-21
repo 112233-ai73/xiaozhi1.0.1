@@ -19,7 +19,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "command_word.h"
-#include "audio_sr_handler.h"
+#include "app/app_sr_handler.h"
 
 #include <assert.h>
 

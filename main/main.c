@@ -7,7 +7,7 @@
 #include "audio/audio_init.h"
 #include "audio/audio_mp3_decode.h"
 #include "audio/audio_sr.h"
-#include "usart/usart_init.h"
+#include "bsp/bsp_usart.h"
 #include "bsp/bsp_wifi.h"
 
 #define STARTUP_MP3_FILE "107.mp3"
