@@ -10,6 +10,8 @@ static i2s_chan_handle_t rx_handle = NULL;
 static esp_codec_dev_handle_t play_dev_handle = NULL;
 static esp_codec_dev_handle_t record_dev_handle = NULL;
 
+uint32_t volume_num =50;
+
 /**
  * 第一步：初始化 I2C 总线
  */

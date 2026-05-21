@@ -40,7 +40,7 @@ const char *cmd_phoneme[] = {
     "da kai deng",
     "guan bi deng",
     "ping tang mo shi",
-    "ji yi ping tang mo shi",
+    "pin tang mo shi",
     "xiu xian mo shi",
     "ji yi xiu xian mo shi",
     "shen shui mo shi",

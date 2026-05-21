@@ -256,10 +256,28 @@ void sr_handler_task(void *pvParam)
                     break;
                 case 32:
                     usart_send_data(Volume_up);
+                    if(volume_num<100)
+                    {
+                        volume_num+=10;
+                    }
+                    else
+                    {
+                        volume_num=100;
+                    }
+                    inf_es8311_set_volume(volume_num);
                     audio_mp3_play_file_async("125.mp3");
                     break;
                 case 33:
                     usart_send_data(Volume_down);
+                    if(volume_num>0)
+                    {
+                        volume_num-=10;
+                    }
+                    else
+                    {
+                        volume_num=0;
+                    }
+                    inf_es8311_set_volume(volume_num); 
                     audio_mp3_play_file_async("126.mp3");
                     break;
                 case 34:

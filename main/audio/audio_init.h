@@ -25,6 +25,8 @@
 
 #define AUDIO_CODEC_PA_PIN GPIO_NUM_46
 
+extern uint32_t volume_num;
+
 /**
  * @brief 初始化音频系统
  * 
