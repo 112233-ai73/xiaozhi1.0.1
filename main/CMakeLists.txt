@@ -1,4 +1,5 @@
 idf_component_register(SRCS "main.c"
+                    "ota.c"
                     "com/com_status.c"
                     "app/app_sr_handler.c"
                     "app/app_usart_protocol.c"

@@ -4,4 +4,6 @@ cmake_minimum_required(VERSION 3.5)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project(play_embed_music)
+set(EXTRA_COMPONENT_DIRS ../common)
+
+project(bmgr_play_sdcard_music)
