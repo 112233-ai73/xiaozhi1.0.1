@@ -9,6 +9,7 @@
 #include "audio/audio_sr.h"
 #include "bsp/bsp_usart.h"
 #include "bsp/bsp_wifi.h"
+#include "ota.h"
 
 #define STARTUP_MP3_FILE "107.mp3"
 
@@ -25,6 +26,7 @@ void app_main(void)
 {
     MY_LOGI("speech recognition test start");
     bsp_wifi_init();
+    check_ota_rollback();
     usart_init();
     ESP_ERROR_CHECK(audio_init());
     ESP_ERROR_CHECK(app_sr_start());

@@ -103,17 +103,17 @@ void sr_handler_task(void *pvParam)
                 case 0:
                     com_status_change(SPEAKING);
                     com_set_awake(true);
-                    audio_mp3_play_file_async("103.mp3");
+                    audio_mp3_play_file_async("105.mp3");
                     break;
                 case 1:
                     com_status_change(SPEAKING);
                     com_set_awake(true);
-                    audio_mp3_play_file_async("103.mp3");
+                    audio_mp3_play_file_async("105.mp3");
                     break;
                 case 2:
                     com_status_change(SPEAKING);
                     com_set_awake(true);
-                    audio_mp3_play_file_async("103.mp3");
+                    audio_mp3_play_file_async("105.mp3");
                     break;
                 default:
                     break;

@@ -43,6 +43,35 @@ static void http_cleanup(esp_http_client_handle_t client)
     esp_http_client_cleanup(client);
 }
 
+static void log_ota_network_status(void)
+{
+    wifi_ap_record_t ap_info = {0};
+    esp_err_t wifi_ret = esp_wifi_sta_get_ap_info(&ap_info);
+
+    if (wifi_ret == ESP_OK) {
+        ESP_LOGI(TAG, "OTA WiFi connected: SSID=%s, RSSI=%d, channel=%u",
+                 ap_info.ssid, ap_info.rssi, ap_info.primary);
+    } else {
+        ESP_LOGW(TAG, "OTA WiFi is not connected: %s", esp_err_to_name(wifi_ret));
+    }
+
+    esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta_netif == NULL) {
+        ESP_LOGW(TAG, "OTA STA netif not found");
+        return;
+    }
+
+    esp_netif_ip_info_t ip_info = {0};
+    esp_err_t ip_ret = esp_netif_get_ip_info(sta_netif, &ip_info);
+    if (ip_ret != ESP_OK) {
+        ESP_LOGW(TAG, "OTA failed to get STA IP info: %s", esp_err_to_name(ip_ret));
+        return;
+    }
+
+    ESP_LOGI(TAG, "OTA STA IP: " IPSTR ", gateway: " IPSTR ", netmask: " IPSTR,
+             IP2STR(&ip_info.ip), IP2STR(&ip_info.gw), IP2STR(&ip_info.netmask));
+}
+
 static void xiaozhi_ota_task(void *pvParameter)
 {
     esp_err_t err;
@@ -52,6 +81,8 @@ static void xiaozhi_ota_task(void *pvParameter)
     ESP_LOGI(TAG, "启动小智 OTA 升级任务...");
 
 
+
+    log_ota_network_status();
 
     esp_http_client_config_t config = {
         .url = OTA_URL,

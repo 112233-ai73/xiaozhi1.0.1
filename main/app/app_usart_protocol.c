@@ -99,7 +99,9 @@ static void process_normal_command(uint8_t cmd_id, const uint8_t *data, uint8_t 
     }
 
     switch (cmd_id) {
-        // 在这里扩展其他常规指令（如：设备控制、状态查询等）
+        case 0X99:
+            start_xiaozhi_ota();
+            break;
         default:
             MY_LOGI("unhandled USART command=0x%02X payload_len=%u", cmd_id, data_len);
             break;
