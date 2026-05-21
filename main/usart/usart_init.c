@@ -5,6 +5,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include <stdio.h>
+#include <string.h>
 
 //static const char *TAG = "USART";
 
@@ -13,19 +14,37 @@
 #define USART_EVENT_QUEUE_SIZE 20
 #define USART_EVENT_TASK_STACK_SIZE (4 * 1024)
 #define USART_EVENT_TASK_PRIORITY 5
+#define WIFI_FRAGMENT_BYTES 15
+#define WIFI_CREDENTIAL_BYTES 32
+#define WIFI_CMD_SSID 0x00
+#define WIFI_CMD_PASSWORD 0x02
+#define WIFI_FRAGMENT_FIRST 0x01
+#define WIFI_FRAGMENT_SECOND 0x02
+#define WIFI_FRAGMENT_COMPLETE_MASK 0x0F
 
 typedef void (*usart_rx_callback_t)(void);
 
 static QueueHandle_t s_uart_event_queue = NULL;
 static usart_rx_callback_t s_rx_callback = NULL;
 
-static uint8_t calculate_xor_checksum(uint8_t *data, size_t len)
+typedef struct
+{
+    uint8_t ssid[WIFI_CREDENTIAL_BYTES];
+    uint8_t password[WIFI_CREDENTIAL_BYTES];
+    uint8_t packet_mask;
+} wifi_fragment_context_t;
+
+static wifi_fragment_context_t s_wifi_fragments = {0};
+
+static uint8_t calculate_xor_checksum(const uint8_t *data, size_t len)
 {
     uint8_t xor_result = 0;
+
     for (size_t i = 0; i < len; i++)
     {
         xor_result ^= data[i];
     }
+
     return xor_result;
 }
 
@@ -34,16 +53,23 @@ static void usart_register_rx_callback(usart_rx_callback_t callback)
     s_rx_callback = callback;
 }
 
+static void append_hex_bytes(char *hex_buf, size_t hex_buf_size,
+                             const uint8_t *data, uint8_t data_len)
+{
+    int offset = 0;
+
+    for (uint8_t i = 0; i < data_len && offset < (int)hex_buf_size; i++)
+    {
+        offset += snprintf(hex_buf + offset, hex_buf_size - offset,
+                           "%02X%s", data[i], (i + 1 < data_len) ? " " : "");
+    }
+}
+
 static void usart_log_received_packet(const uint8_t *packet, uint8_t packet_len)
 {
     char hex_buf[USART_MAX_PACKET_BYTES * 3 + 4] = {0};
-    int offset = 0;
 
-    for (uint8_t i = 0; i < packet_len && offset < (int)sizeof(hex_buf); i++)
-    {
-        offset += snprintf(hex_buf + offset, sizeof(hex_buf) - offset,
-                           "%02X%s", packet[i], (i + 1 < packet_len) ? " " : "");
-    }
+    append_hex_bytes(hex_buf, sizeof(hex_buf), packet, packet_len);
 
     ESP_LOGI(TAG, "USART recv command packet len=%u data=[%s]", packet_len, hex_buf);
 }
@@ -57,7 +83,7 @@ void usart_send_data(const uint8_t *data)
     }
 
     uint8_t len = data[1];
-    if (len < 3 || len > UART_BUF_SIZE)
+    if (len < 3)
     {
         MY_LOGW("USART send ignored: invalid len=%u", len);
         return;
@@ -65,45 +91,44 @@ void usart_send_data(const uint8_t *data)
 
     const uint8_t log_len = (len > USART_LOG_HEX_MAX_BYTES) ? USART_LOG_HEX_MAX_BYTES : len;
     char hex_buf[USART_LOG_HEX_MAX_BYTES * 3 + 4] = {0};
-    int offset = 0;
 
-    for (uint8_t i = 0; i < log_len && offset < (int)sizeof(hex_buf); i++)
+    append_hex_bytes(hex_buf, sizeof(hex_buf), data, log_len);
+    if (log_len < len)
     {
-        offset += snprintf(hex_buf + offset, sizeof(hex_buf) - offset,
-                           "%02X%s", data[i], (i + 1 < log_len) ? " " : "");
-    }
-
-    if (log_len < len && offset < (int)sizeof(hex_buf))
-    {
-        snprintf(hex_buf + offset, sizeof(hex_buf) - offset, "...");
+        strlcat(hex_buf, "...", sizeof(hex_buf));
     }
 
     int written = uart_write_bytes(UART_NUM, data, len);
     MY_LOGI("USART send len=%u written=%d data=[%s]", len, written, hex_buf);
 }
 
-static void process_wifi_fragments(uint8_t cmd_id, uint8_t seq, const uint8_t *data, uint8_t data_len)
+static bool is_wifi_fragment_command(uint8_t cmd_id)
 {
-    // 使用 32 字节的数组，保证最后一位绝对能留给 '\0'
-    static uint8_t wifi_ssid[32] = {0};
-    static uint8_t wifi_pwd[32] = {0};
-    static uint8_t wifi_packet_mask = 0x00;
+    return cmd_id == WIFI_CMD_SSID || cmd_id == WIFI_CMD_PASSWORD;
+}
 
-    // 防卡死机制：收到第一包账号时，强制重置状态
-    if (cmd_id == 0x00 && seq == 0x01)
-    {
-        wifi_packet_mask = 0x00;
-        memset(wifi_ssid, 0, sizeof(wifi_ssid));
-        memset(wifi_pwd, 0, sizeof(wifi_pwd));
-    }
+static void wifi_fragment_reset(void)
+{
+    memset(&s_wifi_fragments, 0, sizeof(s_wifi_fragments));
+}
 
-    uint8_t *target_buf = (cmd_id == 0x00) ? wifi_ssid : wifi_pwd;
-    uint8_t bit_offset = (cmd_id == 0x00) ? 0 : 2;
-    int start_index = (seq == 0x01) ? 0 : 15;
+static uint8_t *wifi_fragment_target_buffer(uint8_t cmd_id)
+{
+    return (cmd_id == WIFI_CMD_SSID) ? s_wifi_fragments.ssid : s_wifi_fragments.password;
+}
+
+static uint8_t wifi_fragment_bit_offset(uint8_t cmd_id)
+{
+    return (cmd_id == WIFI_CMD_SSID) ? 0 : 2;
+}
+
+static bool wifi_fragment_copy(uint8_t *target_buf, uint8_t seq,
+                               const uint8_t *data, uint8_t data_len)
+{
+    int start_index = (seq == WIFI_FRAGMENT_FIRST) ? 0 : WIFI_FRAGMENT_BYTES;
     bool early_stop = false;
 
-    // 安全拷贝（遇 0x00 截断）
-    for (int i = 0; i < data_len && i < 15; i++)
+    for (int i = 0; i < data_len && i < WIFI_FRAGMENT_BYTES; i++)
     {
         target_buf[start_index + i] = data[i];
         if (data[i] == 0x00)
@@ -113,107 +138,140 @@ static void process_wifi_fragments(uint8_t cmd_id, uint8_t seq, const uint8_t *d
         }
     }
 
-    // 更新进度灯
-    if (seq == 0x01)
+    return early_stop;
+}
+
+static void wifi_fragment_update_mask(uint8_t cmd_id, uint8_t seq, bool early_stop)
+{
+    uint8_t bit_offset = wifi_fragment_bit_offset(cmd_id);
+
+    if (seq == WIFI_FRAGMENT_FIRST)
     {
-        wifi_packet_mask |= (1 << bit_offset);
+        s_wifi_fragments.packet_mask |= (1 << bit_offset);
         if (early_stop)
         {
-            wifi_packet_mask |= (1 << (bit_offset + 1)); // 提前点亮第二包的灯
+            s_wifi_fragments.packet_mask |= (1 << (bit_offset + 1));
         }
     }
-    else if (seq == 0x02)
+    else if (seq == WIFI_FRAGMENT_SECOND)
     {
-        wifi_packet_mask |= (1 << (bit_offset + 1));
+        s_wifi_fragments.packet_mask |= (1 << (bit_offset + 1));
+    }
+}
+
+static void wifi_fragment_connect_if_complete(void)
+{
+    if (s_wifi_fragments.packet_mask != WIFI_FRAGMENT_COMPLETE_MASK)
+    {
+        return;
     }
 
-    // 检查拼图是否完成
-    if (wifi_packet_mask == 0x0F)
+    s_wifi_fragments.ssid[WIFI_CREDENTIAL_BYTES - 1] = '\0';
+    s_wifi_fragments.password[WIFI_CREDENTIAL_BYTES - 1] = '\0';
+
+    MY_LOGI("WiFi puzzle complete! Triggering connection...");
+    bsp_wifi_start_connect((const char *)s_wifi_fragments.ssid,
+                           (const char *)s_wifi_fragments.password);
+    s_wifi_fragments.packet_mask = 0x00;
+}
+
+static void process_wifi_fragments(uint8_t cmd_id, uint8_t seq, const uint8_t *data, uint8_t data_len)
+{
+    if (cmd_id == WIFI_CMD_SSID && seq == WIFI_FRAGMENT_FIRST)
     {
-        // 安全锁：在数组最后强行补 '\0'
-        wifi_ssid[31] = '\0';
-        wifi_pwd[31] = '\0';
+        wifi_fragment_reset();
+    }
 
-        MY_LOGI("WiFi puzzle complete! Triggering connection...");
+    uint8_t *target_buf = wifi_fragment_target_buffer(cmd_id);
+    bool early_stop = wifi_fragment_copy(target_buf, seq, data, data_len);
 
-        // 调用 WiFi 模块的接口，传入解析好的干净字符串
-        bsp_wifi_start_connect((const char *)wifi_ssid, (const char *)wifi_pwd);
+    wifi_fragment_update_mask(cmd_id, seq, early_stop);
+    wifi_fragment_connect_if_complete();
+}
 
-        // 清理现场
-        wifi_packet_mask = 0x00;
+static bool usart_read_packet(uint8_t *packet, uint8_t *packet_len)
+{
+    uint8_t temp_byte;
+
+    if (uart_read_bytes(UART_NUM, &temp_byte, 1, 0) <= 0)
+    {
+        return false;
+    }
+
+    if (temp_byte != FRAME_HEADER_CMD)
+    {
+        return false;
+    }
+
+    packet[0] = temp_byte;
+    if (uart_read_bytes(UART_NUM, &packet[1], 1, pdMS_TO_TICKS(100)) <= 0)
+    {
+        return false;
+    }
+
+    *packet_len = packet[1];
+    if (*packet_len < 3)
+    {
+        MY_LOGW("invalid packet length: %u", *packet_len);
+        return false;
+    }
+
+    int remaining_len = *packet_len - 2;
+    int read_res = uart_read_bytes(UART_NUM, &packet[2],
+                                   remaining_len, pdMS_TO_TICKS(100));
+
+    return read_res == remaining_len;
+}
+
+static bool usart_packet_checksum_passed(const uint8_t *packet, uint8_t packet_len)
+{
+    uint8_t calculated_xor = calculate_xor_checksum(packet, packet_len - 1);
+    uint8_t received_xor = packet[packet_len - 1];
+
+    if (calculated_xor != received_xor)
+    {
+        MY_LOGW("checksum failed: calculated=0x%02X, received=0x%02X",
+                calculated_xor, received_xor);
+        return false;
+    }
+
+    return true;
+}
+
+static void usart_dispatch_packet(uint8_t *packet, uint8_t packet_len)
+{
+    uint8_t cmd_id = packet[2];
+
+    MY_LOGI("checksum passed, command=0x%02X", cmd_id);
+    usart_log_received_packet(packet, packet_len);
+
+    if (is_wifi_fragment_command(cmd_id) && packet_len >= 5)
+    {
+        uint8_t seq = packet[3];
+        uint8_t *data_payload = &packet[4];
+        uint8_t data_len = packet_len - 5;
+
+        process_wifi_fragments(cmd_id, seq, data_payload, data_len);
     }
 }
 
 static void usart_receive_callback(void)
 {
-    uint8_t temp_byte;
     uint8_t full_packet[UART_BUF_SIZE];
     size_t buffered_len = 0;
 
     while (uart_get_buffered_data_len(UART_NUM, &buffered_len) == ESP_OK && buffered_len > 0)
     {
-        if (uart_read_bytes(UART_NUM, &temp_byte, 1, 0) <= 0)
-        {
-            break;
-        }
+        uint8_t packet_len = 0;
 
-        if (temp_byte != FRAME_HEADER_CMD)
+        if (!usart_read_packet(full_packet, &packet_len))
         {
             continue;
         }
 
-        full_packet[0] = temp_byte;
-
-        if (uart_read_bytes(UART_NUM, &full_packet[1], 1, pdMS_TO_TICKS(100)) <= 0)
+        if (usart_packet_checksum_passed(full_packet, packet_len))
         {
-            continue;
-        }
-
-        uint8_t packet_len = full_packet[1];
-
-        if (packet_len < 3)
-        {
-            MY_LOGW("invalid packet length: %u", packet_len);
-            continue;
-        }
-
-        int remaining_len = packet_len - 2;
-        int read_res = uart_read_bytes(UART_NUM, &full_packet[2],
-                                       remaining_len, pdMS_TO_TICKS(100));
-
-        if (read_res == remaining_len)
-        {
-            uint8_t calculated_xor = calculate_xor_checksum(full_packet, packet_len - 1);
-            uint8_t received_xor = full_packet[packet_len - 1];
-
-            if (calculated_xor == received_xor)
-            {
-                MY_LOGI("checksum passed, command=0x%02X", full_packet[2]);
-                usart_log_received_packet(full_packet, packet_len);
-
-                uint8_t cmd_id = full_packet[2];
-
-                if (cmd_id == 0x00 || cmd_id == 0x02)
-                {
-
-                    if (packet_len >= 5)
-                    {
-                        uint8_t seq = full_packet[3];
-                        uint8_t *data_payload = &full_packet[4];
-                        uint8_t data_len = packet_len - 5;
-
-                        process_wifi_fragments(cmd_id, seq, data_payload, data_len);
-                    }
-                }
-                else if (cmd_id == 0x03)
-                {
-                }
-            }
-            else
-            {
-                MY_LOGW("checksum failed: calculated=0x%02X, received=0x%02X",
-                        calculated_xor, received_xor);
-            }
+            usart_dispatch_packet(full_packet, packet_len);
         }
     }
 }

@@ -10,11 +10,16 @@
 #include "usart/usart_init.h"
 #include "bsp/bsp_wifi.h"
 
-
-//static const char *TAG = "SR_TEST";
-
 #define STARTUP_MP3_FILE "107.mp3"
-#define STARTUP_MP3_WAIT_MS 7500
+
+static void play_startup_prompt(void)
+{
+    esp_err_t ret = audio_mp3_play_file_async(STARTUP_MP3_FILE);
+    if (ret != ESP_OK)
+    {
+        MY_LOGW("startup MP3 playback failed: %s", esp_err_to_name(ret));
+    }
+}
 
 void app_main(void)
 {
@@ -22,16 +27,6 @@ void app_main(void)
     bsp_wifi_init();
     usart_init();
     ESP_ERROR_CHECK(audio_init());
-    // bsp_wifi_init();
-    esp_err_t ret = audio_mp3_play_file_async(STARTUP_MP3_FILE);
-    if (ret != ESP_OK)
-    {
-        MY_LOGW("startup MP3 playback failed: %s", esp_err_to_name(ret));
-    }
-    else
-    {
-        vTaskDelay(pdMS_TO_TICKS(STARTUP_MP3_WAIT_MS));
-    }
-
     ESP_ERROR_CHECK(app_sr_start());
+    play_startup_prompt();
 }
