@@ -6,6 +6,7 @@
 #include "com/com_status.h"
 #include "bsp_wifi.h"
 #include "audio_mp3_decode.h"
+#include "audio/audio_sr.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>

@@ -1,7 +1,7 @@
 #include "audio_sr.h"
 #include "com/com_debug.h"
 
-//static const char *TAG = "AUDIO_SR";
+// static const char *TAG = "AUDIO_SR";
 
 static model_iface_data_t *model_data = NULL;
 static const esp_mn_iface_t *multinet = NULL;
@@ -9,6 +9,7 @@ static const esp_afe_sr_iface_t *afe_handle = NULL;
 static QueueHandle_t g_result_que = NULL;
 static srmodel_list_t *models = NULL;
 static volatile bool g_vad_speech = false;
+static volatile bool s_multinet_enabled = true;
 
 #define VAD_IDLE_TIMEOUT_MS 1000
 #define MULTINET_TIMEOUT_MS 5760
@@ -76,7 +77,7 @@ static void configure_afe(afe_config_t *afe_config)
     afe_config->pcm_config.mic_num = 2;
     afe_config->pcm_config.total_ch_num = 2;
     afe_config->se_init = false;
-    afe_config->aec_init = true;               
+    afe_config->aec_init = true;
     afe_config->ns_init = true;
     afe_config->afe_ns_mode = AFE_NS_MODE_NET;
     afe_config->agc_compression_gain_db = 15;
@@ -152,7 +153,7 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
     if (vad_speech)
     {
         *last_voice_tick = now;
-            switch_to_listening();
+        switch_to_listening();
     }
 
     if (com_status == LISTENING && timeout_elapsed(now, *last_voice_tick, VAD_IDLE_TIMEOUT_MS))
@@ -188,7 +189,7 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
         for (int i = 0; i < mn_result->num; i++)
         {
             MY_LOGI("TOP %d, command_id: %d, phrase_id: %d, prob: %f",
-                     i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
+                    i + 1, mn_result->command_id[i], mn_result->phrase_id[i], mn_result->prob[i]);
         }
 
         int sr_command_id = mn_result->command_id[0];
@@ -222,8 +223,17 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
-        //log_fetch_result(res);
+        // log_fetch_result(res);
         com_awake_timeout_check();
+
+        if (!s_multinet_enabled)
+        {
+            if (com_status == LISTENING)
+            {
+                switch_to_idle();
+            }
+            continue;
+        }
 
         if (handle_vad_state(res, &last_voice_tick))
         {
@@ -259,24 +269,38 @@ esp_err_t app_sr_start(void)
     ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, &audio_detect_task_handle, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
 
-    ret_val = xTaskCreatePinnedToCore(sr_handler_task, "SR Handler Task", 4 * 1024, g_result_que, 1, NULL, 1);
+    ret_val = xTaskCreatePinnedToCore(sr_handler_task, "SR Handler Task", 4 * 1024, g_result_que, 1, &sr_handler_task_handle, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio handler task");
 
     return ESP_OK;
 }
 
+void app_sr_set_multinet_enabled(bool enabled)
+{
+    s_multinet_enabled = enabled;
+    if (!enabled)
+    {
+        g_vad_speech = false;
+        clean_multinet();
+        if (com_status == LISTENING)
+        {
+            com_status_change(IDLE);
+        }
+    }
+}
+
 void app_sr_suspend_tasks(void)
 {
-        vTaskSuspend(audio_feed_task_handle);
-        vTaskSuspend(audio_detect_task_handle);
-        vTaskSuspend(sr_handler_task_handle);
+    vTaskSuspend(audio_feed_task_handle);
+    vTaskSuspend(audio_detect_task_handle);
+    vTaskSuspend(sr_handler_task_handle);
 }
 
 void app_sr_resume_tasks(void)
 {
-        vTaskResume(audio_feed_task_handle);
-        vTaskResume(audio_detect_task_handle);
-        vTaskResume(sr_handler_task_handle);
+    vTaskResume(sr_handler_task_handle);
+    vTaskResume(audio_detect_task_handle);
+    vTaskResume(audio_feed_task_handle);
 }
 
 QueueHandle_t app_sr_get_result_queue(void)

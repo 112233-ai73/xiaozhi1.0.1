@@ -165,6 +165,9 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
             }
             break;
         case 0X99:
+            MY_LOGI("无关任务挂起");
+            app_sr_suspend_tasks();
+            MY_LOGI("OTA 开始");
             start_xiaozhi_ota();
             break;
         default:

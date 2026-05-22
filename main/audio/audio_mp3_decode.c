@@ -9,10 +9,16 @@
 #define MP3_BASE_PATH    "/spiffs"
 #define MP3_PARTITION    "mp3"
 #define DEFAULT_MP3_FILE "test.mp3"
+#define MP3_FILE_NAME_MAX_LEN 64
 
 static SemaphoreHandle_t s_playback_mutex = NULL;
 static volatile bool s_mp3_playing = false;
 static volatile bool s_mp3_stop_requested = false;
+
+typedef struct {
+    char file_name[MP3_FILE_NAME_MAX_LEN];
+    bool pause_multinet;
+} mp3_play_request_t;
 
 bool audio_mp3_is_playing(void)
 {
@@ -21,9 +27,9 @@ bool audio_mp3_is_playing(void)
 
 void stop_play_mp3(void)
 {
-    if (s_mp3_playing) {
+    while (s_mp3_playing) {
         s_mp3_stop_requested = true;
-    }
+    }  
 }
 
 esp_err_t mount_storage_partition(void)
@@ -206,9 +212,12 @@ cleanup:
     return ret;
 }
 
-void mp3_player_task(void *pvParameters)
+static void mp3_player_task(void *pvParameters)
 {
-    const char *file_name = (const char *)pvParameters;
+    mp3_play_request_t *request = (mp3_play_request_t *)pvParameters;
+    const char *file_name = request != NULL ? request->file_name : NULL;
+    bool pause_multinet = request != NULL && request->pause_multinet;
+
     if (file_name == NULL) {
         file_name = DEFAULT_MP3_FILE;
     }
@@ -219,6 +228,10 @@ void mp3_player_task(void *pvParameters)
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
         MY_LOGE("failed to open MP3 file: %s", file_path);
+        if (pause_multinet) {
+            app_sr_set_multinet_enabled(true);
+        }
+        free(request);
         s_mp3_playing = false;
         if (s_playback_mutex != NULL) {
             xSemaphoreGive(s_playback_mutex);
@@ -240,6 +253,10 @@ void mp3_player_task(void *pvParameters)
     }
 
     fclose(file);
+    if (pause_multinet) {
+        app_sr_set_multinet_enabled(true);
+    }
+    free(request);
     s_mp3_stop_requested = false;
     s_mp3_playing = false;
     if (s_playback_mutex != NULL) {
@@ -248,7 +265,7 @@ void mp3_player_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-esp_err_t audio_mp3_play_file_async(const char *file_name)
+static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool pause_multinet)
 {
     if (file_name == NULL) {
         return ESP_ERR_INVALID_ARG;
@@ -275,8 +292,25 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
     s_mp3_playing = true;
     s_mp3_stop_requested = false;
 
-    BaseType_t task_ret = xTaskCreate(mp3_player_task, "mp3_player", 4 * 1024, (void *)file_name, 4, NULL);
+    mp3_play_request_t *request = (mp3_play_request_t *)calloc(1, sizeof(mp3_play_request_t));
+    if (request == NULL) {
+        s_mp3_playing = false;
+        xSemaphoreGive(s_playback_mutex);
+        return ESP_ERR_NO_MEM;
+    }
+    snprintf(request->file_name, sizeof(request->file_name), "%s", file_name);
+    request->pause_multinet = pause_multinet;
+
+    if (pause_multinet) {
+        app_sr_set_multinet_enabled(false);
+    }
+
+    BaseType_t task_ret = xTaskCreate(mp3_player_task, "mp3_player", 4 * 1024, request, 4, NULL);
     if (task_ret != pdPASS) {
+        if (pause_multinet) {
+            app_sr_set_multinet_enabled(true);
+        }
+        free(request);
         s_mp3_playing = false;
         xSemaphoreGive(s_playback_mutex);
         return ESP_FAIL;
@@ -290,11 +324,28 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
     return ESP_OK;
 }
 
+esp_err_t audio_mp3_play_file_async(const char *file_name)
+{
+    return audio_mp3_play_file_async_internal(file_name, false);
+}
+
+esp_err_t audio_mp3_play_file_async_without_multinet(const char *file_name)
+{
+    return audio_mp3_play_file_async_internal(file_name, true);
+}
+
 void audio_mp3_decode_task(void)
 {
     if (mount_storage_partition() != ESP_OK) {
         return;
     }
 
-    mp3_player_task((void *)DEFAULT_MP3_FILE);
+    mp3_play_request_t *request = (mp3_play_request_t *)calloc(1, sizeof(mp3_play_request_t));
+    if (request == NULL) {
+        MY_LOGE("malloc MP3 request failed");
+        return;
+    }
+
+    snprintf(request->file_name, sizeof(request->file_name), "%s", DEFAULT_MP3_FILE);
+    mp3_player_task(request);
 }

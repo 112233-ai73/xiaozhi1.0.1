@@ -16,7 +16,7 @@
 
 static void play_startup_prompt(void)
 {
-    esp_err_t ret = audio_mp3_play_file_async(STARTUP_MP3_FILE);
+    esp_err_t ret = audio_mp3_play_file_async_without_multinet(STARTUP_MP3_FILE);
     if (ret != ESP_OK)
     {
         MY_LOGW("startup MP3 playback failed: %s", esp_err_to_name(ret));
@@ -26,8 +26,8 @@ static void play_startup_prompt(void)
 void app_main(void)
 {
     MY_LOGI("speech recognition test start");
-    //bsp_wifi_init();
-    //check_ota_rollback();
+    bsp_wifi_init();
+    check_ota_rollback();
     usart_init();
     ESP_ERROR_CHECK(audio_init());
     
