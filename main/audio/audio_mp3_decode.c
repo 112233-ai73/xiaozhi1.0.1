@@ -12,10 +12,18 @@
 
 static SemaphoreHandle_t s_playback_mutex = NULL;
 static volatile bool s_mp3_playing = false;
+static volatile bool s_mp3_stop_requested = false;
 
 bool audio_mp3_is_playing(void)
 {
     return s_mp3_playing;
+}
+
+void stop_play_mp3(void)
+{
+    if (s_mp3_playing) {
+        s_mp3_stop_requested = true;
+    }
 }
 
 esp_err_t mount_storage_partition(void)
@@ -96,7 +104,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
     size_t cached_len = 0;
     ret = ESP_AUDIO_ERR_OK;
 
-    while (true) {
+    while (!s_mp3_stop_requested) {
         size_t bytes_read = fread(in_buf + cached_len, 1, MP3_IN_BUF_SIZE - cached_len, file);
         if (bytes_read == 0 && cached_len == 0) {
             break;
@@ -108,7 +116,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
         };
         cached_len = 0;
 
-        while (raw.len > 0) {
+        while (raw.len > 0 && !s_mp3_stop_requested) {
             esp_audio_dec_out_frame_t out_frame = {
                 .buffer = out_buf,
                 .len = out_buf_size,
@@ -167,7 +175,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
                 audio_info_logged = true;
             }
 
-            if (out_frame.decoded_size > 0) {
+            if (out_frame.decoded_size > 0 && !s_mp3_stop_requested) {
                 audio_write(out_frame.buffer, out_frame.decoded_size);
                 decoded_any = true;
             }
@@ -185,7 +193,9 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
         }
     }
 
-    if (decoded_any && (ret == ESP_AUDIO_ERR_DATA_LACK || ret == ESP_AUDIO_ERR_CONTINUE)) {
+    if (s_mp3_stop_requested) {
+        ret = ESP_AUDIO_ERR_OK;
+    } else if (decoded_any && (ret == ESP_AUDIO_ERR_DATA_LACK || ret == ESP_AUDIO_ERR_CONTINUE)) {
         ret = ESP_AUDIO_ERR_OK;
     }
 
@@ -219,7 +229,10 @@ void mp3_player_task(void *pvParameters)
 
     MY_LOGI("start MP3 playback: %s", file_path);
     esp_audio_err_t ret = mp3_decode_file(file);
-    if (ret != ESP_AUDIO_ERR_OK) {
+    if (s_mp3_stop_requested) {
+        MY_LOGI("MP3 playback stopped");
+        com_status_change(IDLE);
+    } else if (ret != ESP_AUDIO_ERR_OK) {
         MY_LOGE("MP3 playback stopped with error: %d", ret);
     } else {
         MY_LOGI("MP3 playback finished");
@@ -227,6 +240,7 @@ void mp3_player_task(void *pvParameters)
     }
 
     fclose(file);
+    s_mp3_stop_requested = false;
     s_mp3_playing = false;
     if (s_playback_mutex != NULL) {
         xSemaphoreGive(s_playback_mutex);
@@ -238,11 +252,6 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
 {
     if (file_name == NULL) {
         return ESP_ERR_INVALID_ARG;
-    }
-
-    if (com_status == LISTENING) {
-        MY_LOGW("MultiNet listening, skip MP3: %s", file_name);
-        return ESP_ERR_INVALID_STATE;
     }
 
     esp_err_t ret = mount_storage_partition();
@@ -264,12 +273,18 @@ esp_err_t audio_mp3_play_file_async(const char *file_name)
     }
 
     s_mp3_playing = true;
+    s_mp3_stop_requested = false;
 
     BaseType_t task_ret = xTaskCreate(mp3_player_task, "mp3_player", 4 * 1024, (void *)file_name, 4, NULL);
     if (task_ret != pdPASS) {
         s_mp3_playing = false;
         xSemaphoreGive(s_playback_mutex);
         return ESP_FAIL;
+    }
+    
+    if (MP3_after_awake) {
+        com_set_awake(true);
+        MP3_after_awake = false;
     }
 
     return ESP_OK;

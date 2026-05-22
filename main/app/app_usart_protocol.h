@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "com/com_debug.h"
+#include "com/com_status.h"
 #include "bsp_wifi.h"
 #include "audio_mp3_decode.h"
 #include <string.h>

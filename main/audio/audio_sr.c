@@ -13,6 +13,10 @@ static volatile bool g_vad_speech = false;
 #define VAD_IDLE_TIMEOUT_MS 1000
 #define MULTINET_TIMEOUT_MS 5760
 
+static TaskHandle_t audio_feed_task_handle = NULL;
+static TaskHandle_t audio_detect_task_handle = NULL;
+static TaskHandle_t sr_handler_task_handle = NULL;
+
 static TickType_t ms_to_ticks(uint32_t timeout_ms)
 {
     return pdMS_TO_TICKS(timeout_ms);
@@ -148,11 +152,7 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
     if (vad_speech)
     {
         *last_voice_tick = now;
-        if (com_status == IDLE)
-        {
             switch_to_listening();
-        }
-        return com_status == LISTENING;
     }
 
     if (com_status == LISTENING && timeout_elapsed(now, *last_voice_tick, VAD_IDLE_TIMEOUT_MS))
@@ -225,16 +225,6 @@ static void audio_detect_task(void *pvParam)
         //log_fetch_result(res);
         com_awake_timeout_check();
 
-        if (audio_mp3_is_playing())
-        {
-            g_vad_speech = false;
-            if (com_status == LISTENING)
-            {
-                switch_to_idle();
-            }
-            continue;
-        }
-
         if (handle_vad_state(res, &last_voice_tick))
         {
             handle_multinet_detect(res);
@@ -263,16 +253,30 @@ esp_err_t app_sr_start(void)
     ESP_RETURN_ON_ERROR(load_multinet_model(), TAG, "Failed load multinet model");
     load_speech_commands();
 
-    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 4 * 1024, afe_data, 5, NULL, 1);
+    BaseType_t ret_val = xTaskCreatePinnedToCore(audio_feed_task, "Feed Task", 4 * 1024, afe_data, 5, &audio_feed_task_handle, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio feed task");
 
-    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, NULL, 0);
+    ret_val = xTaskCreatePinnedToCore(audio_detect_task, "Detect Task", 6 * 1024, afe_data, 5, &audio_detect_task_handle, 0);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio detect task");
 
     ret_val = xTaskCreatePinnedToCore(sr_handler_task, "SR Handler Task", 4 * 1024, g_result_que, 1, NULL, 1);
     ESP_RETURN_ON_FALSE(pdPASS == ret_val, ESP_FAIL, TAG, "Failed create audio handler task");
 
     return ESP_OK;
+}
+
+void app_sr_suspend_tasks(void)
+{
+        vTaskSuspend(audio_feed_task_handle);
+        vTaskSuspend(audio_detect_task_handle);
+        vTaskSuspend(sr_handler_task_handle);
+}
+
+void app_sr_resume_tasks(void)
+{
+        vTaskResume(audio_feed_task_handle);
+        vTaskResume(audio_detect_task_handle);
+        vTaskResume(sr_handler_task_handle);
 }
 
 QueueHandle_t app_sr_get_result_queue(void)

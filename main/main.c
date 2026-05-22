@@ -5,6 +5,7 @@
 #include "com/com_debug.h"
 
 #include "audio/audio_init.h"
+#include "audio/audio_sr.h"
 #include "audio/audio_mp3_decode.h"
 #include "audio/audio_sr.h"
 #include "bsp/bsp_usart.h"
@@ -25,10 +26,12 @@ static void play_startup_prompt(void)
 void app_main(void)
 {
     MY_LOGI("speech recognition test start");
-    bsp_wifi_init();
-    check_ota_rollback();
+    //bsp_wifi_init();
+    //check_ota_rollback();
     usart_init();
     ESP_ERROR_CHECK(audio_init());
+    
     ESP_ERROR_CHECK(app_sr_start());
     play_startup_prompt();
+    
 }

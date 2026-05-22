@@ -76,6 +76,14 @@ uint8_t Wakeup_Mode[] = {0xAA, 0x06, 0x14, 0x0C, 0x00, 0xB4};
 uint8_t Temperature_Up[] = {0xAA, 0x05, 0x12, 0x10, 0x00, 0xAD};
 uint8_t Temperature_Down[] = {0xAA, 0x05, 0x12, 0x20, 0x00, 0x9D};
 
+static void play_mp3(const uint8_t *data, const char *file_name)
+{
+    com_set_awake(false);
+    MP3_after_awake = true;
+    usart_send_data(data);
+    audio_mp3_play_file_async(file_name);
+}
+
 void sr_handler_task(void *pvParam)
 {
     QueueHandle_t xQueue = (QueueHandle_t)pvParam;
@@ -86,7 +94,7 @@ void sr_handler_task(void *pvParam)
         xQueueReceive(xQueue, &result, portMAX_DELAY);
 
         if (ESP_MN_STATE_TIMEOUT == result.state)
-        {
+        { 
             MY_LOGI("timeout");
             continue;
         }
@@ -101,16 +109,19 @@ void sr_handler_task(void *pvParam)
                 switch (result.command_id)
                 {
                 case 0:
+                    stop_play_mp3();
                     com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("105.mp3");
                     break;
                 case 1:
+                    stop_play_mp3();
                     com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("105.mp3");
                     break;
                 case 2:
+                    stop_play_mp3();
                     com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("105.mp3");
@@ -126,14 +137,17 @@ void sr_handler_task(void *pvParam)
                 switch (result.command_id)
                 {
                 case 0:
+                    stop_play_mp3();
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 1:
+                    stop_play_mp3();
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
                 case 2:
+                    stop_play_mp3();
                     com_set_awake(true);
                     audio_mp3_play_file_async("103.mp3");
                     break;
@@ -143,116 +157,88 @@ void sr_handler_task(void *pvParam)
                     com_status_change(IDLE);
                     break;
                 case 4:
-                    usart_send_data(Head_Zero);
-                    audio_mp3_play_file_async("109.mp3");
+                    play_mp3(Head_Zero, "109.mp3");
                     break;
                 case 5:
-                    usart_send_data(Head_One);
-                    audio_mp3_play_file_async("110.mp3");
+                    play_mp3(Head_One, "110.mp3");
                     break;
                 case 6:
-                    usart_send_data(Head_Two);
-                    audio_mp3_play_file_async("111.mp3");
+                    play_mp3(Head_Two, "111.mp3");
                     break;
                 case 7:
-                    usart_send_data(Head_Three);
-                    audio_mp3_play_file_async("112.mp3");
+                    play_mp3(Head_Three, "112.mp3");
                     break;
                 case 8:
-                    usart_send_data(Head_Four);
-                    audio_mp3_play_file_async("113.mp3");
+                    play_mp3(Head_Four, "113.mp3");
                     break;
                 case 9:
-                    usart_send_data(Head_Five);
-                    audio_mp3_play_file_async("114.mp3");
+                    play_mp3(Head_Five, "114.mp3");
                     break;
                 case 10:
-                    usart_send_data(Head_Six);
-                    audio_mp3_play_file_async("115.mp3");
+                    play_mp3(Head_Six, "115.mp3");
                     break;
                 case 11:
-                    usart_send_data(Head_Seven);
-                    audio_mp3_play_file_async("116.mp3");
+                    play_mp3(Head_Seven, "116.mp3");
                     break;
                 case 12:
-                    usart_send_data(Head_Eight);
-                    audio_mp3_play_file_async("117.mp3");
+                    play_mp3(Head_Eight, "117.mp3");
                     break;
                 case 13:
-                    usart_send_data(Head_Nine);
-                    audio_mp3_play_file_async("118.mp3");
+                    play_mp3(Head_Nine, "118.mp3");
                     break;
                 case 14:
-                    usart_send_data(Head_Ten);
-                    audio_mp3_play_file_async("119.mp3");
+                    play_mp3(Head_Ten, "119.mp3");
                     break;
                 case 15:
-                    usart_send_data(Foot_Zero);
-                    audio_mp3_play_file_async("163.mp3");
+                    play_mp3(Foot_Zero, "163.mp3");
                     break;
                 case 16:
-                    usart_send_data(Foot_One);
-                    audio_mp3_play_file_async("164.mp3");
+                    play_mp3(Foot_One, "164.mp3");
                     break;
                 case 17:
-                    usart_send_data(Foot_Two);
-                    audio_mp3_play_file_async("165.mp3");
+                    play_mp3(Foot_Two, "165.mp3");
                     break;
                 case 18:
-                    usart_send_data(Foot_Three);
-                    audio_mp3_play_file_async("166.mp3");
+                    play_mp3(Foot_Three, "166.mp3");
                     break;
                 case 19:
-                    usart_send_data(Foot_Four);
-                    audio_mp3_play_file_async("167.mp3");
+                    play_mp3(Foot_Four, "167.mp3");
                     break;
                 case 20:
-                    usart_send_data(Foot_Five);
-                    audio_mp3_play_file_async("168.mp3");
+                    play_mp3(Foot_Five, "168.mp3");
                     break;
                 case 21:
-                    usart_send_data(Foot_Six);
-                    audio_mp3_play_file_async("169.mp3");
+                    play_mp3(Foot_Six, "169.mp3");
                     break;
                 case 22:
-                    usart_send_data(Foot_Seven);
-                    audio_mp3_play_file_async("170.mp3");
+                    play_mp3(Foot_Seven, "170.mp3");
                     break;
                 case 23:
-                    usart_send_data(Foot_Eight);
-                    audio_mp3_play_file_async("171.mp3");
+                    play_mp3(Foot_Eight, "171.mp3");
                     break;
                 case 24:
-                    usart_send_data(Foot_Nine);
-                    audio_mp3_play_file_async("172.mp3");
+                    play_mp3(Foot_Nine, "172.mp3");
                     break;
                 case 25:
-                    usart_send_data(Foot_Ten);
-                    audio_mp3_play_file_async("173.mp3");
+                    play_mp3(Foot_Ten, "173.mp3");
                     break;
                 case 26:
-                    usart_send_data(Head_Rise);
-                    audio_mp3_play_file_async("108.mp3");
+                    play_mp3(Head_Rise, "108.mp3");
                     break;
                 case 27:
-                    usart_send_data(Head_Down);
-                    audio_mp3_play_file_async("120.mp3");
+                    play_mp3(Head_Down, "120.mp3");
                     break;
                 case 28:
-                    usart_send_data(Foot_Rise);
-                    audio_mp3_play_file_async("121.mp3");
+                    play_mp3(Foot_Rise, "121.mp3");
                     break;
                 case 29:
-                    usart_send_data(Foot_Down);
-                    audio_mp3_play_file_async("122.mp3");
+                    play_mp3(Foot_Down, "122.mp3");
                     break;
                 case 30:
-                    usart_send_data(Both_Rise);
-                    audio_mp3_play_file_async("123.mp3");
+                    play_mp3(Both_Rise, "123.mp3");
                     break;
                 case 31:
-                    usart_send_data(Both_Down);
-                    audio_mp3_play_file_async("124.mp3");
+                    play_mp3(Both_Down, "124.mp3");
                     break;
                 case 32:
                     usart_send_data(Volume_up);
@@ -281,188 +267,142 @@ void sr_handler_task(void *pvParam)
                     audio_mp3_play_file_async("126.mp3");
                     break;
                 case 34:
-                    usart_send_data(Light_On);
-                    audio_mp3_play_file_async("127.mp3");
+                    play_mp3(Light_On, "127.mp3");
                     break;
                 case 35:
-                    usart_send_data(Light_Off);
-                    audio_mp3_play_file_async("128.mp3");
+                    play_mp3(Light_Off, "128.mp3");
                     break;
                 case 36:
-                    usart_send_data(Light_On);
-                    audio_mp3_play_file_async("127.mp3");
+                    play_mp3(Light_On, "127.mp3");
                     break;
                 case 37:
-                    usart_send_data(Light_Off);
-                    audio_mp3_play_file_async("128.mp3");
+                    play_mp3(Light_Off, "128.mp3");
                     break;
                 case 38:
-                    usart_send_data(Sleep_Mode);
-                    audio_mp3_play_file_async("129.mp3");
+                    play_mp3(Sleep_Mode, "129.mp3");
                     break;
                 case 39:
-                    usart_send_data(Sleep_Mode);
-                    audio_mp3_play_file_async("129.mp3");
+                    play_mp3(Sleep_Mode, "129.mp3");
                     break;
                 case 40:
-                    usart_send_data(Relax_Mode);
-                    audio_mp3_play_file_async("130.mp3");
+                    play_mp3(Relax_Mode, "130.mp3");
                     break;
                 case 41:
-                    usart_send_data(Memory_Leisure_Mode);
-                    audio_mp3_play_file_async("131.mp3");
+                    play_mp3(Memory_Leisure_Mode, "131.mp3");
                     break;
                 case 42:
-                    usart_send_data(Deep_Sleep_Mode);
-                    audio_mp3_play_file_async("132.mp3");
+                    play_mp3(Deep_Sleep_Mode, "132.mp3");
                     break;
                 case 43:
-                    usart_send_data(Memory_DeepSleep_Mode);
-                    audio_mp3_play_file_async("133.mp3");
+                    play_mp3(Memory_DeepSleep_Mode, "133.mp3");
                     break;
                 case 44:
-                    usart_send_data(Sleep_Aid_Mode);
-                    audio_mp3_play_file_async("134.mp3");
+                    play_mp3(Sleep_Aid_Mode, "134.mp3");
                     break;
                 case 45:
-                    usart_send_data(Memory_SleepAid_Mode);
-                    audio_mp3_play_file_async("135.mp3");
+                    play_mp3(Memory_SleepAid_Mode, "135.mp3");
                     break;
                 case 46:
-                    usart_send_data(Relaxation_Mode);
-                    audio_mp3_play_file_async("136.mp3");
+                    play_mp3(Relaxation_Mode, "136.mp3");
                     break;
                 case 47:
-                    usart_send_data(Memory_Relax_Mode);
-                    audio_mp3_play_file_async("137.mp3");
+                    play_mp3(Memory_Relax_Mode, "137.mp3");
                     break;
                 case 48:
-                    usart_send_data(Wakeup_Mode);
-                    audio_mp3_play_file_async("138.mp3");
+                    play_mp3(Wakeup_Mode, "138.mp3");
                     break;
                 case 49:
-                    usart_send_data(Waist_Support_Mode);
-                    audio_mp3_play_file_async("139.mp3");
+                    play_mp3(Waist_Support_Mode, "139.mp3");
                     break;
                 case 50:
-                    usart_send_data(Softer_Lumbar_Support);
-                    audio_mp3_play_file_async("140.mp3");
+                    play_mp3(Softer_Lumbar_Support, "140.mp3");
                     break;
                 case 51:
-                    usart_send_data(Firmer_Lumbar_Support);
-                    audio_mp3_play_file_async("140.mp3");
+                    play_mp3(Firmer_Lumbar_Support, "140.mp3");
                     break;
                 case 52:
-                    usart_send_data(Left_Lumbar_Support_Mode);
-                    audio_mp3_play_file_async("141.mp3");
+                    play_mp3(Left_Lumbar_Support_Mode, "141.mp3");
                     break;
                 case 53:
-                    usart_send_data(Right_Lumbar_Support_Mode);
-                    audio_mp3_play_file_async("142.mp3");
+                    play_mp3(Right_Lumbar_Support_Mode, "142.mp3");
                     break;
                 case 54:
-                    usart_send_data(Softer_Left_Lumbar_Support);
-                    audio_mp3_play_file_async("141.mp3");
+                    play_mp3(Softer_Left_Lumbar_Support, "141.mp3");
                     break;
                 case 55:
-                    usart_send_data(Softer_Right_Lumbar_Support);
-                    audio_mp3_play_file_async("142.mp3");
+                    play_mp3(Softer_Right_Lumbar_Support, "142.mp3");
                     break;
                 case 56:
-                    usart_send_data(Firmer_Left_Lumbar_Support);
-                    audio_mp3_play_file_async("141.mp3");
+                    play_mp3(Firmer_Left_Lumbar_Support, "141.mp3");
                     break;
                 case 57:
-                    usart_send_data(Firmer_Right_Lumbar_Support);
-                    audio_mp3_play_file_async("142.mp3");
+                    play_mp3(Firmer_Right_Lumbar_Support, "142.mp3");
                     break;
                 case 58:
-                    usart_send_data(Turn_Off_Waist_Support);
-                    audio_mp3_play_file_async("143.mp3");
+                    play_mp3(Turn_Off_Waist_Support, "143.mp3");
                     break;
                 case 59:
-                    usart_send_data(Left_Lumbar_Support_Off);
-                    audio_mp3_play_file_async("144.mp3");
+                    play_mp3(Left_Lumbar_Support_Off, "144.mp3");
                     break;
                 case 60:
-                    usart_send_data(Right_Lumbar_Support_Off);
-                    audio_mp3_play_file_async("145.mp3");
+                    play_mp3(Right_Lumbar_Support_Off, "145.mp3");
                     break;
                 case 61:
-                    usart_send_data(Heat_On);
-                    audio_mp3_play_file_async("146.mp3");
+                    play_mp3(Heat_On, "146.mp3");
                     break;
                 case 62:
-                    usart_send_data(Heat_Off);
-                    audio_mp3_play_file_async("147.mp3");
+                    play_mp3(Heat_Off, "147.mp3");
                     break;
                 case 63:
-                    usart_send_data(Temperature_Up);
-                    audio_mp3_play_file_async("148.mp3");
+                    play_mp3(Temperature_Up, "148.mp3");
                     break;
                 case 64:
-                    usart_send_data(Temperature_Down);
-                    audio_mp3_play_file_async("149.mp3");
+                    play_mp3(Temperature_Down, "149.mp3");
                     break;
                 case 65:
-                    usart_send_data(Stop);
-                    audio_mp3_play_file_async("150.mp3");
+                    play_mp3(Stop, "150.mp3");
                     break;
                 case 66:
-                    usart_send_data(Head_Massage_On);
-                    audio_mp3_play_file_async("151.mp3");
+                    play_mp3(Head_Massage_On, "151.mp3");
                     break;
                 case 67:
-                    usart_send_data(Head_Massage_On);
-                    audio_mp3_play_file_async("151.mp3");
+                    play_mp3(Head_Massage_On, "151.mp3");
                     break;
                 case 68:
-                    usart_send_data(Head_Massage_Off);
-                    audio_mp3_play_file_async("152.mp3");
+                    play_mp3(Head_Massage_Off, "152.mp3");
                     break;
                 case 69:
-                    usart_send_data(Foot_Massage_On);
-                    audio_mp3_play_file_async("153.mp3");
+                    play_mp3(Foot_Massage_On, "153.mp3");
                     break;
                 case 70:
-                    usart_send_data(Foot_Massage_On);
-                    audio_mp3_play_file_async("153.mp3");
+                    play_mp3(Foot_Massage_On, "153.mp3");
                     break;
                 case 71:
-                    usart_send_data(Foot_Massage_Off);
-                    audio_mp3_play_file_async("154.mp3");
+                    play_mp3(Foot_Massage_Off, "154.mp3");
                     break;
                 case 72:
-                    usart_send_data(Turn_On_Relaxation);
-                    audio_mp3_play_file_async("155.mp3");
+                    play_mp3(Turn_On_Relaxation, "155.mp3");
                     break;
                 case 73:
-                    usart_send_data(Turn_Off_Relaxation);
-                    audio_mp3_play_file_async("156.mp3");
+                    play_mp3(Turn_Off_Relaxation, "156.mp3");
                     break;
                 case 74:
-                    usart_send_data(Massage_Mode_One);
-                    audio_mp3_play_file_async("157.mp3");
+                    play_mp3(Massage_Mode_One, "157.mp3");
                     break;
                 case 75:
-                    usart_send_data(Massage_Mode_Two);
-                    audio_mp3_play_file_async("158.mp3");
+                    play_mp3(Massage_Mode_Two, "158.mp3");
                     break;
                 case 76:
-                    usart_send_data(Massage_Mode_Three);
-                    audio_mp3_play_file_async("159.mp3");
+                    play_mp3(Massage_Mode_Three, "159.mp3");
                     break;
                 case 77:
-                    usart_send_data(Massage_10_Minutes);
-                    audio_mp3_play_file_async("160.mp3");
+                    play_mp3(Massage_10_Minutes, "160.mp3");
                     break;
                 case 78:
-                    usart_send_data(Massage_Mode_One);
-                    audio_mp3_play_file_async("161.mp3");
+                    play_mp3(Massage_Mode_One, "161.mp3");
                     break;
                 case 79:
-                    usart_send_data(Massage_Mode_One);
-                    audio_mp3_play_file_async("162.mp3");
+                    play_mp3(Massage_Mode_One, "162.mp3");
                     break;
                 default:
                     break;

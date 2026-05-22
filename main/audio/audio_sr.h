@@ -34,6 +34,8 @@ typedef struct {
 } sr_result_t;
 
 esp_err_t app_sr_start(void);
+void app_sr_suspend_tasks(void);
+void app_sr_resume_tasks(void);
 QueueHandle_t app_sr_get_result_queue(void);
 
 #endif /* __AUDIO_SR_H__ */

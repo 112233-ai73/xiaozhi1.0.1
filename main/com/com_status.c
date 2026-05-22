@@ -12,6 +12,7 @@
 
 com_status_t com_status = START;
 bool is_awake = false;
+bool MP3_after_awake = false;
 
 static int64_t s_awake_deadline_us = 0;
 
