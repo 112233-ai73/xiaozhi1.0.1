@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "ota.h"
+#include "app_MP3_download.h"
 
 /**
  * @brief 处理分发已经过校验的串口完整数据包

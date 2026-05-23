@@ -157,12 +157,17 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
         case 0x3E:
             if (packet[3] == 0x01)
             {
-                
             }
             if (packet[3] == 0x02)
             {
-               
             }
+            break;
+        case 0X91:
+            MY_LOGI("开始下载音频文件");
+            app_mp3_download_start_async("http://192.168.26.3:8080/welcome.mp3", "/spiffs/welcome.mp3");
+            break;
+        case 0X92:
+            audio_mp3_play_file_async("welcome.mp3");
             break;
         case 0X99:
             MY_LOGI("无关任务挂起");
