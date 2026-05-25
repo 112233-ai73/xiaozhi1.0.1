@@ -18,8 +18,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "freertos/ringbuf.h"
 #include "command_word.h"
-#include "app/app_sr_handler.h"
+#include "audio_offline_sr_handler.h"
 
 #include <assert.h>
 
@@ -33,6 +34,7 @@ typedef struct {
     float               confidence;
 } sr_result_t;
 
+RingbufHandle_t app_sr_get_audio_ringbuf(void);
 esp_err_t app_sr_start(void);
 void app_sr_set_multinet_enabled(bool enabled);
 void app_sr_suspend_tasks(void);

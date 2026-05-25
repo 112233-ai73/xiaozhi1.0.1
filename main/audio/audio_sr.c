@@ -10,6 +10,7 @@ static QueueHandle_t g_result_que = NULL;
 static srmodel_list_t *models = NULL;
 static volatile bool g_vad_speech = false;
 static volatile bool s_multinet_enabled = true;
+static RingbufHandle_t g_audio_out_ringbuf = NULL;
 
 #define VAD_IDLE_TIMEOUT_MS 1000
 #define MULTINET_TIMEOUT_MS 5760
@@ -17,6 +18,7 @@ static volatile bool s_multinet_enabled = true;
 static TaskHandle_t audio_feed_task_handle = NULL;
 static TaskHandle_t audio_detect_task_handle = NULL;
 static TaskHandle_t sr_handler_task_handle = NULL;
+
 
 static TickType_t ms_to_ticks(uint32_t timeout_ms)
 {
@@ -211,6 +213,8 @@ static void audio_detect_task(void *pvParam)
     TickType_t last_voice_tick = 0;
 
     int afe_chunksize = afe_handle->get_fetch_chunksize(afe_data);
+    int fetch_ch_num = afe_handle->get_fetch_channel_num(afe_data);
+    int fetch_bytes = afe_chunksize * fetch_ch_num * sizeof(int16_t);
     int mu_chunksize = multinet->get_samp_chunksize(model_data);
     assert(mu_chunksize == afe_chunksize);
 
@@ -235,8 +239,14 @@ static void audio_detect_task(void *pvParam)
             continue;
         }
 
+
         if (handle_vad_state(res, &last_voice_tick))
         {
+            if (g_audio_out_ringbuf != NULL) {
+                if (xRingbufferSend(g_audio_out_ringbuf, res->data, fetch_bytes, 0) != pdTRUE) {
+                    MY_LOGW("Audio output ringbuffer is full, dropping frame!");
+                }
+            }
             handle_multinet_detect(res);
         }
     }
@@ -246,6 +256,16 @@ esp_err_t app_sr_start(void)
 {
     g_result_que = xQueueCreate(1, sizeof(sr_result_t));
     ESP_RETURN_ON_FALSE(NULL != g_result_que, ESP_ERR_NO_MEM, TAG, "Failed create result queue");
+
+    size_t ringbuf_size = 32 * 1024;
+    uint8_t *ringbuf_storage = (uint8_t *)heap_caps_malloc(ringbuf_size, MALLOC_CAP_SPIRAM);
+    StaticRingbuffer_t *ringbuf_struct = (StaticRingbuffer_t *)heap_caps_malloc(sizeof(StaticRingbuffer_t), MALLOC_CAP_SPIRAM);
+    if (ringbuf_storage && ringbuf_struct) {
+        g_audio_out_ringbuf = xRingbufferCreateStatic(ringbuf_size, RINGBUF_TYPE_BYTEBUF, ringbuf_storage, ringbuf_struct);
+    } else {
+        MY_LOGE("Failed to allocate audio ringbuffer in PSRAM");
+        return ESP_ERR_NO_MEM;
+    }
 
     models = esp_srmodel_init("model");
     ESP_RETURN_ON_FALSE(NULL != models, ESP_FAIL, TAG, "Failed init SR models");
@@ -306,4 +326,9 @@ void app_sr_resume_tasks(void)
 QueueHandle_t app_sr_get_result_queue(void)
 {
     return g_result_que;
+}
+
+RingbufHandle_t app_sr_get_audio_ringbuf(void)
+{
+    return g_audio_out_ringbuf;
 }
