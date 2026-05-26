@@ -242,7 +242,7 @@ static void audio_detect_task(void *pvParam)
 
         if (handle_vad_state(res, &last_voice_tick))
         {
-            if (g_audio_out_ringbuf != NULL) {
+            if (g_audio_out_ringbuf != NULL&&is_wsline==true) {
                 if (xRingbufferSend(g_audio_out_ringbuf, res->data, fetch_bytes, 0) != pdTRUE) {
                     MY_LOGW("Audio output ringbuffer is full, dropping frame!");
                 }

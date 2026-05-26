@@ -9,10 +9,11 @@
 #include "audio/audio_mp3_decode.h"
 #include "audio/audio_sr.h"
 #include "bsp/bsp_usart.h"
+#include "bsp/bsp_sdcard.h"
 #include "bsp/bsp_wifi.h"
 #include "ota.h"
 
-#define STARTUP_MP3_FILE "107.mp3"
+#define STARTUP_MP3_FILE "/spiffs/107.mp3"
 
 static void play_startup_prompt(void)
 {
@@ -28,6 +29,8 @@ void app_main(void)
     MY_LOGI("speech recognition test start");
     bsp_wifi_init();
     check_ota_rollback();
+    init_sd_card_spi();
+    ESP_ERROR_CHECK(sd_list_files("/sdcard"));
     usart_init();
     ESP_ERROR_CHECK(audio_init());
     

@@ -112,38 +112,38 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
 {
     (void)data;
 
-    // 使用数学规律简化 0x6A ~ 0x76 的 MP3 异步播放指令
+    // 使用数学规律简�?0x6A ~ 0x76 �?MP3 异步播放指令
     if (header == 0xAA)
     {
         com_status_change(SPEAKING);
         switch (cmd_id)
         {
         case 0X6B:
-            audio_mp3_play_file_async("200.mp3");
+            audio_mp3_play_file_async("/spiffs/200.mp3");
             break;
         case 0X6D:
-            audio_mp3_play_file_async("201.mp3");
+            audio_mp3_play_file_async("/spiffs/201.mp3");
             break;
         case 0X6F:
-            audio_mp3_play_file_async("202.mp3");
+            audio_mp3_play_file_async("/spiffs/202.mp3");
             break;
         case 0X71:
-            audio_mp3_play_file_async("203.mp3");
+            audio_mp3_play_file_async("/spiffs/203.mp3");
             break;
         case 0X73:
-            audio_mp3_play_file_async("204.mp3");
+            audio_mp3_play_file_async("/spiffs/204.mp3");
             break;
         case 0X75:
-            audio_mp3_play_file_async("205.mp3");
+            audio_mp3_play_file_async("/spiffs/205.mp3");
             break;
         case 0X77:
-            audio_mp3_play_file_async("206.mp3");
+            audio_mp3_play_file_async("/spiffs/206.mp3");
             break;
         case 0X80:
-            audio_mp3_play_file_async("207.mp3");
+            audio_mp3_play_file_async("/spiffs/207.mp3");
             break;
         case 0X81:
-            audio_mp3_play_file_async("208.mp3");
+            audio_mp3_play_file_async("/spiffs/208.mp3");
             break;
         default:
             MY_LOGI("unhandled USART command=0x%02X payload_len=%u", cmd_id, data_len);
@@ -163,16 +163,16 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
             }
             break;
         case 0X91:
-            MY_LOGI("开始下载音频文件");
+            MY_LOGI("start downloading MP3 file");
             app_mp3_download_start_async("http://192.168.26.3:8080/welcome.mp3", "/spiffs/welcome.mp3");
             break;
         case 0X92:
-            audio_mp3_play_file_async("welcome.mp3");
+            audio_mp3_play_file_async("/spiffs/welcome.mp3");
             break;
         case 0X99:
             MY_LOGI("无关任务挂起");
             app_sr_suspend_tasks();
-            MY_LOGI("OTA 开始");
+            MY_LOGI("OTA start");
             start_xiaozhi_ota();
             break;
         default:

@@ -80,7 +80,10 @@ const char *cmd_phoneme[] = {
     "mo shi san",
     "fang song shi fen zhong",
     "fang song er shi fen zhong",
-    "fang song san shi fen zhong"
+    "fang song san shi fen zhong",
+    "bo fang ge qu",
+    "xia yi shou",
+    "shang yi shou"
 };
 
 const size_t command_word_count = sizeof(cmd_phoneme) / sizeof(cmd_phoneme[0]);

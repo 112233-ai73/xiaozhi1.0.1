@@ -10,6 +10,8 @@
 #define PIN_NUM_CLK   GPIO_NUM_7  
 #define PIN_NUM_CS    GPIO_NUM_5  
 
+char sd_file_names[MAX_FILES_TO_LIST][MAX_FILENAME_LEN];
+int sd_file_count = 0;
 
 // --- 写入文本文件 ---
 esp_err_t sd_write_text_file(const char *path, const char *data)
@@ -106,9 +108,50 @@ void init_sd_card_spi(void)
     
     // 打印 SD 卡信息
     sdmmc_card_print_info(stdout, card);
+}
 
-    // --- 测试读写功能 ---
-    const char *test_file = MOUNT_POINT "/test.txt";
-    sd_write_text_file(test_file, "Hello ESP32-S3 SPI SD Card!");
-    sd_read_text_file(test_file);
+esp_err_t sd_list_files(const char *dir_path)
+{
+    MY_LOGI("开始读取目录并筛选 MP3 文件: %s", dir_path);
+    
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        MY_LOGE("无法打开目录，请检查路径: %s", dir_path);
+        return ESP_FAIL;
+    }
+
+    struct dirent *entry;
+    sd_file_count = 0; 
+
+    while ((entry = readdir(dir)) != NULL) {
+        
+        // 1. 忽略目录
+        if (entry->d_type == DT_DIR) {
+            continue;
+        }
+
+        // 2. 检查后缀是否为 .mp3
+        char *ext = strrchr(entry->d_name, '.');
+        if (ext != NULL && strcasecmp(ext, ".mp3") == 0) {
+            
+            // 3. 检查数组是否已满
+            if (sd_file_count < MAX_FILES_TO_LIST) {
+                
+                // 4. 使用 snprintf 拼接路径和文件名
+                // 如果传入的 dir_path 是 "/sdcard"，格式化后就是 "/sdcard/文件名.mp3"
+                // snprintf 会自动在末尾补 '\0'，非常安全
+                snprintf(sd_file_names[sd_file_count], MAX_FILENAME_LEN, "%s/%s", dir_path, entry->d_name);
+                
+                MY_LOGI("提取到完整路径: %s", sd_file_names[sd_file_count]);
+                sd_file_count++;
+            } else {
+                MY_LOGW("MP3 文件数量已达到设定上限 (%d)，停止记录", MAX_FILES_TO_LIST);
+                break; 
+            }
+        }
+    }
+
+    closedir(dir);
+    MY_LOGI("目录读取完成，共保存了 %d 个带路径的 MP3 文件名。", sd_file_count);
+    return ESP_OK;
 }

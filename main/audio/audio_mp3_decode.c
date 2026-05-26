@@ -8,17 +8,22 @@
 #define PCM_OUT_BUF_SIZE (4096)
 #define MP3_BASE_PATH    "/spiffs"
 #define MP3_PARTITION    "mp3"
-#define DEFAULT_MP3_FILE "test.mp3"
-#define MP3_FILE_NAME_MAX_LEN 64
+#define DEFAULT_MP3_FILE "/spiffs/test.mp3"
+#define MP3_FILE_PATH_MAX_LEN 128
 
 static SemaphoreHandle_t s_playback_mutex = NULL;
 static volatile bool s_mp3_playing = false;
 static volatile bool s_mp3_stop_requested = false;
 
 typedef struct {
-    char file_name[MP3_FILE_NAME_MAX_LEN];
+    char file_path[MP3_FILE_PATH_MAX_LEN];
     bool pause_multinet;
 } mp3_play_request_t;
+
+static bool is_spiffs_file_path(const char *file_path)
+{
+    return strncmp(file_path, MP3_BASE_PATH "/", strlen(MP3_BASE_PATH "/")) == 0;
+}
 
 bool audio_mp3_is_playing(void)
 {
@@ -215,15 +220,12 @@ cleanup:
 static void mp3_player_task(void *pvParameters)
 {
     mp3_play_request_t *request = (mp3_play_request_t *)pvParameters;
-    const char *file_name = request != NULL ? request->file_name : NULL;
+    const char *file_path = request != NULL ? request->file_path : NULL;
     bool pause_multinet = request != NULL && request->pause_multinet;
 
-    if (file_name == NULL) {
-        file_name = DEFAULT_MP3_FILE;
+    if (file_path == NULL || file_path[0] == '\0') {
+        file_path = DEFAULT_MP3_FILE;
     }
-
-    char file_path[96] = {0};
-    snprintf(file_path, sizeof(file_path), "%s/%s", MP3_BASE_PATH, file_name);
 
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
@@ -267,13 +269,22 @@ static void mp3_player_task(void *pvParameters)
 
 static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool pause_multinet)
 {
-    if (file_name == NULL) {
+    if (file_name == NULL || file_name[0] != '/') {
+        MY_LOGE("MP3 file path must be absolute: %s", file_name == NULL ? "NULL" : file_name);
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t ret = mount_storage_partition();
-    if (ret != ESP_OK) {
-        return ret;
+    if (strlen(file_name) >= MP3_FILE_PATH_MAX_LEN) {
+        MY_LOGE("MP3 file path too long: %s", file_name);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    esp_err_t ret = ESP_OK;
+    if (is_spiffs_file_path(file_name)) {
+        ret = mount_storage_partition();
+        if (ret != ESP_OK) {
+            return ret;
+        }
     }
 
     if (s_playback_mutex == NULL) {
@@ -298,7 +309,7 @@ static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool 
         xSemaphoreGive(s_playback_mutex);
         return ESP_ERR_NO_MEM;
     }
-    snprintf(request->file_name, sizeof(request->file_name), "%s", file_name);
+    snprintf(request->file_path, sizeof(request->file_path), "%s", file_name);
     request->pause_multinet = pause_multinet;
 
     if (pause_multinet) {
@@ -346,6 +357,6 @@ void audio_mp3_decode_task(void)
         return;
     }
 
-    snprintf(request->file_name, sizeof(request->file_name), "%s", DEFAULT_MP3_FILE);
+    snprintf(request->file_path, sizeof(request->file_path), "%s", DEFAULT_MP3_FILE);
     mp3_player_task(request);
 }

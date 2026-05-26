@@ -14,6 +14,7 @@ typedef enum
 extern com_status_t com_status;
 extern bool is_awake;
 extern bool MP3_after_awake;
+extern bool is_wsline;
 
 
 void com_set_awake(bool awake);

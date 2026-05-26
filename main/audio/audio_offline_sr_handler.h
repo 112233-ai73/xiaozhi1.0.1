@@ -13,6 +13,7 @@
 #include "freertos/queue.h"
 #include "bsp/bsp_usart.h"
 #include "com/com_status.h"
+#include "bsp/bsp_sdcard.h"
 
 void sr_handler_task(void *pvParam);
 
