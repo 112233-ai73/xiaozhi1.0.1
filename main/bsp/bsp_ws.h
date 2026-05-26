@@ -29,7 +29,7 @@ extern int WEBSOCKET_SESSION_ID_BIT;
 /**
  * @brief 初始化WS
  */
-void bsp_ws_init(text_callback_t text_cb, bin_callback_t bin_cb);
+void bsp_ws_init(void);//(text_callback_t text_cb, bin_callback_t bin_cb);
 
 /**
  * @brief WS开启

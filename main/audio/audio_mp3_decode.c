@@ -10,6 +10,7 @@
 #define MP3_PARTITION    "mp3"
 #define DEFAULT_MP3_FILE "/spiffs/test.mp3"
 #define MP3_FILE_PATH_MAX_LEN 128
+#define SDCARD_RESAMPLE_GAIN_Q8 768
 
 static SemaphoreHandle_t s_playback_mutex = NULL;
 static volatile bool s_mp3_playing = false;
@@ -23,6 +24,24 @@ typedef struct {
 static bool is_spiffs_file_path(const char *file_path)
 {
     return strncmp(file_path, MP3_BASE_PATH "/", strlen(MP3_BASE_PATH "/")) == 0;
+}
+
+static int16_t clip_int16(int32_t sample)
+{
+    if (sample > INT16_MAX) {
+        return INT16_MAX;
+    }
+
+    if (sample < INT16_MIN) {
+        return INT16_MIN;
+    }
+
+    return (int16_t)sample;
+}
+
+static int16_t apply_sdcard_resample_gain(int32_t sample)
+{
+    return clip_int16((sample * SDCARD_RESAMPLE_GAIN_Q8) / 256);
 }
 
 bool audio_mp3_is_playing(void)
@@ -231,7 +250,7 @@ static esp_audio_err_t mp3_decode_file(FILE *file, bool enable_resample)
                         }
                         mono_sample /= in_channels;
                         
-                        resample_buf[out_frames++] = (int16_t)mono_sample;
+                        resample_buf[out_frames++] = apply_sdcard_resample_gain(mono_sample);
                         resample_phase += step;
                     }
                     

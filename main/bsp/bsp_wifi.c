@@ -224,6 +224,32 @@ void bsp_wifi_start_connect(const char *ssid, const char *password)
     s_uart_provisioning = false;
 }
 
+esp_err_t bsp_wifi_wait_connected(TickType_t ticks_to_wait)
+{
+    if (s_wifi_event_group == NULL)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           ticks_to_wait);
+
+    if ((bits & WIFI_CONNECTED_BIT) != 0)
+    {
+        return ESP_OK;
+    }
+
+    if ((bits & WIFI_FAIL_BIT) != 0)
+    {
+        return ESP_FAIL;
+    }
+
+    return ESP_ERR_TIMEOUT;
+}
+
 void bsp_wifi_init(void)
 {
     // Initialize NVS

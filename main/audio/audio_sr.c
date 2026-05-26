@@ -49,6 +49,11 @@ static void switch_to_idle(void)
 
 static void switch_to_listening(void)
 {
+    if (!is_awake)
+    {
+        return;
+    }
+
     if (com_status != LISTENING)
     {
         MY_LOGI("voice detected, enter listening");
@@ -158,6 +163,11 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
         switch_to_listening();
     }
 
+    if (!is_awake)
+    {
+        return vad_speech;
+    }
+
     if (com_status == LISTENING && timeout_elapsed(now, *last_voice_tick, VAD_IDLE_TIMEOUT_MS))
     {
         MY_LOGI("voice idle timeout, back to idle");
@@ -242,7 +252,7 @@ static void audio_detect_task(void *pvParam)
 
         if (handle_vad_state(res, &last_voice_tick))
         {
-            if (g_audio_out_ringbuf != NULL&&is_wsline==true) {
+            if (com_status == LISTENING && g_audio_out_ringbuf != NULL&&is_wsline==true) {
                 if (xRingbufferSend(g_audio_out_ringbuf, res->data, fetch_bytes, 0) != pdTRUE) {
                     MY_LOGW("Audio output ringbuffer is full, dropping frame!");
                 }

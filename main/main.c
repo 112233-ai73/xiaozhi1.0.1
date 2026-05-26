@@ -11,9 +11,16 @@
 #include "bsp/bsp_usart.h"
 #include "bsp/bsp_sdcard.h"
 #include "bsp/bsp_wifi.h"
+#include "bsp/bsp_http.h"
+#include "bsp/bsp_nvs.h"
+#include "bsp/bsp_ws.h"
+#include "app/app_MP3_download.h"
 #include "ota.h"
 
 #define STARTUP_MP3_FILE "/spiffs/107.mp3"
+#define HTTP_WIFI_WAIT_MS 15000
+
+bool is_yueguang = false;
 
 static void play_startup_prompt(void)
 {
@@ -35,6 +42,19 @@ void app_main(void)
     ESP_ERROR_CHECK(audio_init());
     
     ESP_ERROR_CHECK(app_sr_start());
+
     play_startup_prompt();
+    //bsp_ws_init();
+
+    // esp_err_t wifi_ret = bsp_wifi_wait_connected(pdMS_TO_TICKS(HTTP_WIFI_WAIT_MS));
+    // if (wifi_ret == ESP_OK)
+    // {  
+    //     http_request_active_code();
+    //     bsp_ws_start();
+    // }
+    // else
+    // {
+    //     MY_LOGW("skip active code request, WiFi not ready: %s", esp_err_to_name(wifi_ret));
+    // }
     
 }

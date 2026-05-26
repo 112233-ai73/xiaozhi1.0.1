@@ -68,10 +68,10 @@ websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 /**
  * @brief 初始化WS
  */
-void bsp_ws_init(text_callback_t text_cb, bin_callback_t bin_cb)
+void bsp_ws_init(void)//(text_callback_t text_cb, bin_callback_t bin_cb)
 {
-    text_callback = text_cb;
-    bin_callback = bin_cb;
+    //text_callback = text_cb;
+   // bin_callback = bin_cb;
     // 1. 创建ws配置对象
     // WS的配置项
     esp_websocket_client_config_t websocket_cfg = {

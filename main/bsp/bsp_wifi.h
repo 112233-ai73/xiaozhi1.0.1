@@ -18,4 +18,6 @@ void bsp_wifi_init(void);
 
 void bsp_wifi_start_connect(const char *ssid, const char *password);
 
+esp_err_t bsp_wifi_wait_connected(TickType_t ticks_to_wait);
+
 #endif /* __BSP_WIFI_H__ */

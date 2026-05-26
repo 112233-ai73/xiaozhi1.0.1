@@ -60,11 +60,20 @@ void com_set_awake(bool awake)
     } else {
         com_awake_timer_stop();
     }
+
+    if (!is_awake && com_status == LISTENING) {
+        com_status_change(IDLE);
+    }
 }
 
 void com_status_change(com_status_t status)
 {
     com_status_t previous_status = com_status;
+
+    if (status == LISTENING && !is_awake) {
+        MY_LOGD("ignore LISTENING while is_awake=false");
+        return;
+    }
 
     if (previous_status == status) {
         return;
