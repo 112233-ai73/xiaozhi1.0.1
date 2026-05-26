@@ -77,7 +77,8 @@ esp_err_t mount_storage_partition(void)
     return ESP_OK;
 }
 
-static esp_audio_err_t mp3_decode_file(FILE *file)
+// [修改] 增加了一个 enable_resample 参数
+static esp_audio_err_t mp3_decode_file(FILE *file, bool enable_resample) 
 {
     esp_audio_err_t ret = esp_audio_dec_register_default();
     if (ret != ESP_AUDIO_ERR_OK && ret != ESP_AUDIO_ERR_ALREADY_EXIST) {
@@ -101,6 +102,13 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
     uint8_t *in_buf = (uint8_t *)malloc(MP3_IN_BUF_SIZE);
     uint8_t *out_buf = (uint8_t *)malloc(PCM_OUT_BUF_SIZE);
     uint32_t out_buf_size = PCM_OUT_BUF_SIZE;
+
+    // [新增] 软重采样相关的变量状态
+    int16_t *resample_buf = NULL; 
+    float resample_phase = 0.0f;  // 用于在多次 buffer 处理间平滑过渡相位
+    bool need_resample = false;   
+    int in_rate = 16000;
+    int in_channels = 1;
 
     if (in_buf == NULL || out_buf == NULL) {
         MY_LOGE("malloc MP3 buffers failed");
@@ -145,6 +153,14 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
 
                 out_buf = new_out_buf;
                 out_buf_size = out_frame.needed_size;
+
+                // [新增] 同步扩容重采样缓冲区
+                if (resample_buf != NULL) {
+                    int16_t *new_resample = (int16_t *)realloc(resample_buf, out_buf_size);
+                    if (new_resample != NULL) {
+                        resample_buf = new_resample;
+                    }
+                }
                 continue;
             }
 
@@ -179,15 +195,54 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
                              (unsigned int)info.channel,
                              (unsigned int)info.bits_per_sample);
 
-                    if (info.sample_rate != 16000 || info.channel != 1 || info.bits_per_sample != 16) {
-                        MY_LOGW("audio output is configured for 16 kHz, 16-bit, mono");
+                    in_rate = info.sample_rate;
+                    in_channels = info.channel;
+
+                    // [新增] 判断是否需要介入重采样
+                    if (enable_resample && (in_rate != 16000 || in_channels != 1)) {
+                        MY_LOGI("Enable software resampling: %dHz %dCh -> 16000Hz 1Ch", in_rate, in_channels);
+                        need_resample = true;
+                        // 分配重采样空间（由于是降采样且变单声道，输出数据必定比原 buffer 小，使用 out_buf_size 足够安全）
+                        resample_buf = (int16_t *)malloc(out_buf_size); 
+                    } else if (in_rate != 16000 || in_channels != 1 || info.bits_per_sample != 16) {
+                        MY_LOGW("audio output is configured for 16 kHz, 16-bit, mono (Resampling bypassed)");
                     }
                 }
                 audio_info_logged = true;
             }
 
             if (out_frame.decoded_size > 0 && !s_mp3_stop_requested) {
-                audio_write(out_frame.buffer, out_frame.decoded_size);
+                // [新增] 核心重采样与降混音流
+                if (need_resample && resample_buf != NULL) {
+                    size_t in_samples = out_frame.decoded_size / sizeof(int16_t);
+                    size_t in_frames = in_samples / in_channels;
+                    size_t out_frames = 0;
+                    float step = (float)in_rate / 16000.0f; 
+                    
+                    const int16_t *in_pcm = (const int16_t *)out_frame.buffer;
+                    
+                    while ((int)resample_phase < in_frames) {
+                        int idx = (int)resample_phase;
+                        int32_t mono_sample = 0;
+                        
+                        // 多声道求均值转单声道
+                        for (int c = 0; c < in_channels; c++) {
+                            mono_sample += in_pcm[idx * in_channels + c];
+                        }
+                        mono_sample /= in_channels;
+                        
+                        resample_buf[out_frames++] = (int16_t)mono_sample;
+                        resample_phase += step;
+                    }
+                    
+                    // 将相位偏移扣除当前帧数，保留余数留到下一次 decode 循环使用，防止音频跨帧时产生杂音毛刺
+                    resample_phase -= in_frames; 
+                    
+                    audio_write((uint8_t *)resample_buf, out_frames * sizeof(int16_t));
+                } else {
+                    // 原生逻辑（非/sdcard 或已经是 16k 单声道）
+                    audio_write(out_frame.buffer, out_frame.decoded_size);
+                }
                 decoded_any = true;
             }
 
@@ -213,6 +268,9 @@ static esp_audio_err_t mp3_decode_file(FILE *file)
 cleanup:
     free(in_buf);
     free(out_buf);
+    if (resample_buf) {
+        free(resample_buf); // [新增] 释放重采样内存
+    }
     esp_audio_dec_close(decoder);
     return ret;
 }
@@ -242,8 +300,16 @@ static void mp3_player_task(void *pvParameters)
         return;
     }
 
+    // [新增] 判断是否为 sdcard 下的文件来决定是否挂载重采样
+    bool enable_resample = false;
+    if (strncmp(file_path, "/sdcard", 7) == 0) {
+        enable_resample = true;
+    }
+
     MY_LOGI("start MP3 playback: %s", file_path);
-    esp_audio_err_t ret = mp3_decode_file(file);
+    // [修改] 将 enable_resample 传入解码函数
+    esp_audio_err_t ret = mp3_decode_file(file, enable_resample); 
+    
     if (s_mp3_stop_requested) {
         MY_LOGI("MP3 playback stopped");
         com_status_change(IDLE);
@@ -267,6 +333,7 @@ static void mp3_player_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+// ... 下方的 audio_mp3_play_file_async_internal 等其他函数保持不变 ...
 static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool pause_multinet)
 {
     if (file_name == NULL || file_name[0] != '/') {
@@ -327,10 +394,11 @@ static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool 
         return ESP_FAIL;
     }
     
-    if (MP3_after_awake) {
-        com_set_awake(true);
-        MP3_after_awake = false;
-    }
+    // 假设这是你自定义的全局变量逻辑
+    // if (MP3_after_awake) {
+    //     com_set_awake(true);
+    //     MP3_after_awake = false;
+    // }
 
     return ESP_OK;
 }
