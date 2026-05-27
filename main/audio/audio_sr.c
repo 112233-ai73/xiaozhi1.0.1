@@ -1,4 +1,5 @@
 #include "audio_sr.h"
+#include "bsp/bsp_ws.h"
 #include "com/com_debug.h"
 
 // static const char *TAG = "AUDIO_SR";
@@ -54,11 +55,20 @@ static void switch_to_listening(void)
         return;
     }
 
+    if (com_status == SPEAKING)
+    {
+        return;
+    }
+
     if (com_status != LISTENING)
     {
         MY_LOGI("voice detected, enter listening");
         clean_multinet();
         com_status_change(LISTENING);
+        if (is_wsline)
+        {
+            bsp_ws_send_start_listen();
+        }
     }
 }
 
@@ -83,7 +93,7 @@ static void configure_afe(afe_config_t *afe_config)
 {
     afe_config->pcm_config.mic_num = 2;
     afe_config->pcm_config.total_ch_num = 2;
-    afe_config->se_init = false;
+    afe_config->se_init = true;
     afe_config->aec_init = true;
     afe_config->ns_init = true;
     afe_config->afe_ns_mode = AFE_NS_MODE_NET;
@@ -93,7 +103,7 @@ static void configure_afe(afe_config_t *afe_config)
     afe_config->wakenet_init = false;
     afe_config->wakenet_model_name = NULL;
     afe_config->vad_init = true;
-    afe_config->vad_mode = VAD_MODE_3;
+    afe_config->vad_mode = VAD_MODE_1;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 }
 
@@ -157,6 +167,11 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
     bool vad_speech = (res->vad_state == VAD_SPEECH);
     g_vad_speech = vad_speech;
 
+    if (com_status == SPEAKING)
+    {
+        return false;
+    }
+
     if (vad_speech)
     {
         *last_voice_tick = now;
@@ -171,6 +186,10 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
     if (com_status == LISTENING && timeout_elapsed(now, *last_voice_tick, VAD_IDLE_TIMEOUT_MS))
     {
         MY_LOGI("voice idle timeout, back to idle");
+        if (is_wsline)
+        {
+            bsp_ws_send_stop_listen();
+        }
         switch_to_idle();
         return false;
     }
@@ -189,7 +208,7 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
 
     if (ESP_MN_STATE_TIMEOUT == mn_state)
     {
-        MY_LOGW("Time out");
+        //MY_LOGW("Time out");
         send_sr_result(mn_state, 0);
         switch_to_idle();
         return;

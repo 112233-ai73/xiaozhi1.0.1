@@ -7,7 +7,7 @@
 #include "audio/audio_init.h"
 #include "audio/audio_sr.h"
 #include "audio/audio_mp3_decode.h"
-#include "audio/audio_sr.h"
+#include "audio/audio_online_sr_handle.h"
 #include "bsp/bsp_usart.h"
 #include "bsp/bsp_sdcard.h"
 #include "bsp/bsp_wifi.h"
@@ -42,9 +42,9 @@ void app_main(void)
     ESP_ERROR_CHECK(audio_init());
     
     ESP_ERROR_CHECK(app_sr_start());
+    ESP_ERROR_CHECK(audio_online_init());
 
     play_startup_prompt();
-    //bsp_ws_init();
 
     // esp_err_t wifi_ret = bsp_wifi_wait_connected(pdMS_TO_TICKS(HTTP_WIFI_WAIT_MS));
     // if (wifi_ret == ESP_OK)

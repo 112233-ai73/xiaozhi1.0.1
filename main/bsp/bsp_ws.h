@@ -16,7 +16,6 @@
 #include <cJSON.h>
 #include "bsp_esp32s3.h"
 #include "com_debug.h"
-#include "audio_online_sr_handle.h"
 #include "com_status.h"
 
 typedef void (*text_callback_t)(char *data, int len);
@@ -29,7 +28,9 @@ extern int WEBSOCKET_SESSION_ID_BIT;
 /**
  * @brief 初始化WS
  */
-void bsp_ws_init(void);//(text_callback_t text_cb, bin_callback_t bin_cb);
+void bsp_ws_init(void);
+void bsp_ws_set_callbacks(text_callback_t text_cb, bin_callback_t bin_cb);
+bool bsp_ws_is_connected(void);
 
 /**
  * @brief WS开启

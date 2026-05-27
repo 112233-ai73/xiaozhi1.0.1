@@ -7,7 +7,7 @@ static esp_websocket_client_handle_t client;
 EventGroupHandle_t ws_event_group;
 
 // 定义事件标志组的一个位 用来表示ws是否连接成功
-static int WEBSOCKET_CONNECTED_BIT = (1 << 0);
+static const EventBits_t WEBSOCKET_CONNECTED_BIT = (1 << 0);
 
 int WEBSOCKET_SESSION_ID_BIT = (1 << 1);
 
@@ -31,10 +31,12 @@ websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     case WEBSOCKET_EVENT_CONNECTED:
         MY_LOGI("ws连接成功");
         // 连接成功,把事件标志组中的表示ws连接成功的位置1
+        is_wsline = true;
         xEventGroupSetBits(ws_event_group, WEBSOCKET_CONNECTED_BIT);
         break;
     // ws断开连接
     case WEBSOCKET_EVENT_DISCONNECTED:
+        is_wsline = false;
         MY_LOGI("ws断开连接");
         break;
     // ws收到数据
@@ -43,11 +45,17 @@ websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         MY_LOGI("Received opcode=%d", data->op_code);
         if (data->op_code == 0x2)
         {
-            bin_callback((char *)data->data_ptr, data->data_len);
+            if (bin_callback != NULL)
+            {
+                bin_callback((char *)data->data_ptr, data->data_len);
+            }
         }
         else if (data->op_code == 0x1)
         {
-            text_callback((char *)data->data_ptr, data->data_len);
+            if (text_callback != NULL)
+            {
+                text_callback((char *)data->data_ptr, data->data_len);
+            }
         }
         break;
     // ws错误
@@ -60,6 +68,7 @@ websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         // 两件事件:
     
         // 2. 把设备状态变成初始化IDLE
+        is_wsline = false;
         com_status_change(IDLE);
         break;
     }
@@ -95,6 +104,17 @@ void bsp_ws_init(void)//(text_callback_t text_cb, bin_callback_t bin_cb)
     ws_event_group = xEventGroupCreate();
 }
 
+void bsp_ws_set_callbacks(text_callback_t text_cb, bin_callback_t bin_cb)
+{
+    text_callback = text_cb;
+    bin_callback = bin_cb;
+}
+
+bool bsp_ws_is_connected(void)
+{
+    return client != NULL && esp_websocket_client_is_connected(client);
+}
+
 /**
  * @brief WS开启
  */
@@ -102,6 +122,11 @@ void bsp_ws_start(void)
 {
     if (client != NULL && !esp_websocket_client_is_connected(client))
     {
+        if (ws_event_group != NULL)
+        {
+            xEventGroupClearBits(ws_event_group, WEBSOCKET_CONNECTED_BIT | WEBSOCKET_SESSION_ID_BIT);
+        }
+        memset(session_id, 0, sizeof(session_id));
         esp_websocket_client_start(client);
         // 并且要等待事件标志组置1
         xEventGroupWaitBits(ws_event_group, WEBSOCKET_CONNECTED_BIT, true, true, portMAX_DELAY);
@@ -118,6 +143,7 @@ void bsp_ws_stop(void)
     if (client != NULL && esp_websocket_client_is_connected(client))
     {
         esp_websocket_client_close(client, portMAX_DELAY);
+        is_wsline = false;
     }
 }
 

@@ -1,4 +1,5 @@
 #include "audio_offline_sr_handler.h"
+#include "audio_online_sr_handle.h"
 #include "com/com_debug.h"
 
 static uint8_t music_num = 0;
@@ -97,7 +98,6 @@ void sr_handler_task(void *pvParam)
 
         if (ESP_MN_STATE_TIMEOUT == result.state)
         { 
-            MY_LOGI("timeout");
             continue;
         }
 
@@ -112,27 +112,29 @@ void sr_handler_task(void *pvParam)
                 {
                 case 0:
                     stop_play_mp3();
-                    com_status_change(SPEAKING);
                     com_set_awake(true);
+                    usart_send_data(Foot_Ten);
                     audio_mp3_play_file_async("/spiffs/105.mp3");
+                    audio_online_start_async();
                     break;
                 case 1:
                     stop_play_mp3();
-                    com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("/spiffs/105.mp3");
+                    audio_online_start_async();
                     break;
                 case 2:
                     stop_play_mp3();
-                    com_status_change(SPEAKING);
                     com_set_awake(true);
                     audio_mp3_play_file_async("/spiffs/105.mp3");
+                    audio_online_start_async();
                     break;
                 default:
                     break;
                 }
             }
-            else
+            //else
+            if(false)
             {
                 com_set_awake(true);
                 com_status_change(SPEAKING);
