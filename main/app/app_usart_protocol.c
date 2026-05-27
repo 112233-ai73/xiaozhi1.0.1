@@ -1,4 +1,4 @@
-#include "app_usart_protocol.h"
+﻿#include "app_usart_protocol.h"
 
 #define WIFI_FRAGMENT_BYTES 15
 #define WIFI_CREDENTIAL_BYTES 32
@@ -112,7 +112,7 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
 {
     (void)data;
 
-    // 使用数学规律简�?0x6A ~ 0x76 �?MP3 异步播放指令
+    // 浣跨敤鏁板瑙勫緥绠€锟?0x6A ~ 0x76 锟?MP3 寮傛鎾斁鎸囦护
     if (header == 0xAA)
     {
         com_status_change(SPEAKING);
@@ -164,13 +164,13 @@ static void process_normal_command(const uint8_t *packet, uint8_t header, uint8_
             break;
         case 0X91:
             MY_LOGI("start downloading MP3 file");
-            app_mp3_download_start_async("http://192.168.26.3:8080/welcome.mp3", "/spiffs/welcome.mp3");
+            app_mp3_download_start_async("http://192.168.26.2:8080/yueguang.mp3", "/sdcard/yueguang.mp3");
             break;
         case 0X92:
-            audio_mp3_play_file_async("/spiffs/welcome.mp3");
+            audio_mp3_play_file_async("/sdcard/yueguang.mp3");
             break;
         case 0X99:
-            MY_LOGI("无关任务挂起");
+            MY_LOGI("音频任务挂起");
             app_sr_suspend_tasks();
             MY_LOGI("OTA start");
             start_xiaozhi_ota();
@@ -192,7 +192,7 @@ static void dispatch_wifi_fragment_packet(uint8_t cmd_id, const uint8_t *packet,
 
     uint8_t seq = packet[3];
     const uint8_t *data_payload = &packet[4];
-    uint8_t data_len = packet_len - 5; // 减去 帧头(1) + 长度(1) + 命令(1) + 序号(1) + 校验(1)
+    uint8_t data_len = packet_len - 5; // 鍑忓幓 甯уご(1) + 闀垮害(1) + 鍛戒护(1) + 搴忓彿(1) + 鏍￠獙(1)
 
     process_wifi_fragments(cmd_id, seq, data_payload, data_len);
 }
@@ -205,7 +205,7 @@ static void dispatch_normal_packet(uint8_t header, uint8_t cmd_id, const uint8_t
     if (packet_len > 4)
     {
         data_payload = &packet[3];
-        data_len = packet_len - 4; // 减去 帧头(1) + 长度(1) + 命令(1) + 校验(1)
+        data_len = packet_len - 4; // 鍑忓幓 甯уご(1) + 闀垮害(1) + 鍛戒护(1) + 鏍￠獙(1)
     }
 
     process_normal_command(packet, header, cmd_id, data_payload, data_len);
@@ -230,3 +230,4 @@ void app_usart_protocol_handle_packet(const uint8_t *packet, uint8_t packet_len)
         dispatch_normal_packet(header, cmd_id, packet, packet_len);
     }
 }
+

@@ -141,17 +141,17 @@ void sr_handler_task(void *pvParam)
                 case 0:
                     stop_play_mp3();
                     com_set_awake(true);
-                    audio_mp3_play_file_async("/spiffs/103.mp3");
+                    audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 1:
                     stop_play_mp3();
                     com_set_awake(true);
-                    audio_mp3_play_file_async("/spiffs/103.mp3");
+                    audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 2:
                     stop_play_mp3();
                     com_set_awake(true);
-                    audio_mp3_play_file_async("/spiffs/103.mp3");
+                    audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 3:
                     com_set_awake(false);

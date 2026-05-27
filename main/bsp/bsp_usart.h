@@ -8,9 +8,9 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#define UART_NUM       UART_NUM_0
-#define UART_TX_IO     GPIO_NUM_43
-#define UART_RX_IO     GPIO_NUM_44
+#define UART_NUM       UART_NUM_1
+#define UART_TX_IO     GPIO_NUM_17
+#define UART_RX_IO     GPIO_NUM_18
 #define UART_BAUD_RATE (115200)
 #define UART_BUF_SIZE  (1024)
 #define FRAME_HEADER_A 0xAA

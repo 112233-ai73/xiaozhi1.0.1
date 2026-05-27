@@ -1,7 +1,9 @@
 #include "app_MP3_download.h"
 #include "audio_mp3_decode.h"
+#include "bsp/bsp_sdcard.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <stdbool.h>
 #include <unistd.h>
 
 #define MP3_DOWNLOAD_URL_MAX_LEN 160
@@ -14,6 +16,11 @@ typedef struct
 } mp3_download_request_t;
 
 static volatile bool s_mp3_downloading = false;
+
+static bool is_sdcard_file_path(const char *file_path)
+{
+    return file_path != NULL && strncmp(file_path, "/sdcard/", strlen("/sdcard/")) == 0;
+}
 
 static void mp3_download_task(void *param)
 {
@@ -35,6 +42,14 @@ static void mp3_download_task(void *param)
     if (ret == ESP_OK)
     {
         MY_LOGI("MP3 download task finished: %s", request->file_path);
+        if (is_sdcard_file_path(request->file_path))
+        {
+            esp_err_t list_ret = sd_list_files("/sdcard");
+            if (list_ret != ESP_OK)
+            {
+                MY_LOGW("failed to refresh sd_file_names after download: %s", esp_err_to_name(list_ret));
+            }
+        }
     }
     else
     {

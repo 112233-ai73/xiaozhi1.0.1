@@ -147,14 +147,45 @@ static void xiaozhi_ota_task(void *pvParameter)
         .timeout_ms = 5000,
     };
     esp_http_client_handle_t client_ver = esp_http_client_init(&config_ver);
+    if (client_ver == NULL)
+    {
+        ESP_LOGE(TAG, "HTTP client init failed");
+        ota_fail_and_delete_task(NULL, 0);
+        return;
+    }
 
     MY_LOGI("创建数组用于存放下载的 JSON 字符串");
-    char version_buffer[128] = {0};
+    char version_buffer[OTA_JSON_BUFFER_SIZE] = {0};
     err = esp_http_client_open(client_ver, 0);
     if (err == ESP_OK)
     {
         esp_http_client_fetch_headers(client_ver);
-        esp_http_client_read(client_ver, version_buffer, sizeof(version_buffer) - 1);
+        int total_read = 0;
+        while (total_read < (int)sizeof(version_buffer) - 1)
+        {
+            int data_read = esp_http_client_read(client_ver,
+                                                version_buffer + total_read,
+                                                sizeof(version_buffer) - 1 - total_read);
+            if (data_read < 0)
+            {
+                MY_LOGE("read OTA JSON failed");
+                break;
+            }
+            if (data_read == 0)
+            {
+                if (esp_http_client_is_complete_data_received(client_ver))
+                {
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(10));
+                continue;
+            }
+            total_read += data_read;
+        }
+    }
+    else
+    {
+        MY_LOGE("open OTA JSON connection failed: %s", esp_err_to_name(err));
     }
     esp_http_client_cleanup(client_ver);
 
@@ -183,9 +214,21 @@ static void xiaozhi_ota_task(void *pvParameter)
         return;
     }
 
-    char server_version[32];
-    strncpy(server_version, server_ver_obj->valuestring, sizeof(server_version));
+    cJSON *ota_url_obj = cJSON_GetObjectItem(json, "url");
+    if (!ota_url_obj || !cJSON_IsString(ota_url_obj))
+    {
+        MY_LOGE("cannot get OTA URL from JSON");
+        cJSON_Delete(json);
+        ota_fail_and_delete_task(NULL, 0);
+        return;
+    }
+
+    char server_version[32] = {0};
+    char ota_url[OTA_URL_MAX_LEN] = {0};
+    strncpy(server_version, server_ver_obj->valuestring, sizeof(server_version) - 1);
+    strncpy(ota_url, ota_url_obj->valuestring, sizeof(ota_url) - 1);
     cJSON_Delete(json);
+    MY_LOGI("OTA URL: %s", ota_url);
 
     MY_LOGI("云端最新版本: %s", server_version);
 
@@ -200,7 +243,7 @@ static void xiaozhi_ota_task(void *pvParameter)
 
     MY_LOGI("开始下载新固件");
     esp_http_client_config_t config = {
-        .url = OTA_URL,
+        .url = ota_url,
         .timeout_ms = 10000,
         .keep_alive_enable = true,
         // .cert_pem = (char *)server_cert_pem_start, // HTTPS 时取消注释并配置证书

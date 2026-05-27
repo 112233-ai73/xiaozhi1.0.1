@@ -13,10 +13,12 @@
 #include "esp_partition.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "cJSON.h"
 
 #define BUFFSIZE 1024
-#define OTA_URL "http://10.176.68.23:8000/xiaozhi_update.bin"
-#define OTA_VERSION_URL "http://10.176.68.23:8000/xiaozhi_version.json"
+#define OTA_VERSION_URL "http://192.168.26.2:8080/xiaozhi_update.json"
+#define OTA_JSON_BUFFER_SIZE 512
+#define OTA_URL_MAX_LEN 256
 
 void check_ota_rollback(void);
 
