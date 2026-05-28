@@ -332,11 +332,14 @@ static void mp3_player_task(void *pvParameters)
     if (s_mp3_stop_requested) {
         MY_LOGI("MP3 playback stopped");
         com_status_change(IDLE);
+        MP3_after_awake = false;
     } else if (ret != ESP_AUDIO_ERR_OK) {
         MY_LOGE("MP3 playback stopped with error: %d", ret);
+        MP3_after_awake = false;
     } else {
         MY_LOGI("MP3 playback finished");
         com_status_change(IDLE);
+        MP3_after_awake = false;
     }
 
     fclose(file);
@@ -414,10 +417,10 @@ static esp_err_t audio_mp3_play_file_async_internal(const char *file_name, bool 
     }
     
     // 假设这是你自定义的全局变量逻辑
-    // if (MP3_after_awake) {
-    //     com_set_awake(true);
-    //     MP3_after_awake = false;
-    // }
+    if (MP3_after_awake) {
+        com_set_awake(true);
+        MP3_after_awake = false;
+    }
 
     return ESP_OK;
 }

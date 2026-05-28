@@ -93,7 +93,7 @@ static void configure_afe(afe_config_t *afe_config)
 {
     afe_config->pcm_config.mic_num = 2;
     afe_config->pcm_config.total_ch_num = 2;
-    afe_config->se_init = true;
+    afe_config->se_init = false;
     afe_config->aec_init = true;
     afe_config->ns_init = true;
     afe_config->afe_ns_mode = AFE_NS_MODE_NET;
@@ -169,7 +169,7 @@ static bool handle_vad_state(const afe_fetch_result_t *res, TickType_t *last_voi
 
     if (com_status == SPEAKING)
     {
-        return false;
+        return is_awake && vad_speech;
     }
 
     if (vad_speech)
@@ -209,6 +209,11 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
     if (ESP_MN_STATE_TIMEOUT == mn_state)
     {
         //MY_LOGW("Time out");
+        if (com_status == SPEAKING)
+        {
+            clean_multinet();
+            return;
+        }
         send_sr_result(mn_state, 0);
         switch_to_idle();
         return;
@@ -225,6 +230,16 @@ static void handle_multinet_detect(afe_fetch_result_t *res)
 
         int sr_command_id = mn_result->command_id[0];
         MY_LOGI("Deteted command : %d", sr_command_id);
+
+        if (com_status == SPEAKING &&
+            sr_command_id != 0 &&
+            sr_command_id != 1 &&
+            sr_command_id != 2)
+        {
+            clean_multinet();
+            return;
+        }
+
         send_sr_result(mn_state, sr_command_id);
 #if !SR_CONTINUE_DET
         clean_multinet();
@@ -271,7 +286,7 @@ static void audio_detect_task(void *pvParam)
 
         if (handle_vad_state(res, &last_voice_tick))
         {
-            if (com_status == LISTENING && g_audio_out_ringbuf != NULL&&is_wsline==true) {
+            if (com_status == LISTENING && g_audio_out_ringbuf != NULL&&is_awake==true&&is_wsline==true) {
                 if (xRingbufferSend(g_audio_out_ringbuf, res->data, fetch_bytes, 0) != pdTRUE) {
                     MY_LOGW("Audio output ringbuffer is full, dropping frame!");
                 }

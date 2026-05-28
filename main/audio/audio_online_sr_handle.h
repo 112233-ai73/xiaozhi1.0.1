@@ -12,6 +12,7 @@ audio_online_sr_handle_t *audio_online_sr_handle_create(void);
 esp_err_t audio_online_sr_handle_start(audio_online_sr_handle_t *handle);
 esp_err_t audio_online_init(void);
 esp_err_t audio_online_start_async(void);
+void audio_online_interrupt_playback(void);
 bool audio_online_is_ready(void);
 
 esp_err_t audio_online_sr_handle_read_data(audio_online_sr_handle_t *handle,

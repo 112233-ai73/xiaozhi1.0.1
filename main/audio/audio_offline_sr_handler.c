@@ -133,8 +133,7 @@ void sr_handler_task(void *pvParam)
                     break;
                 }
             }
-            //else
-            if(false)
+            else//if(false)
             {
                 com_set_awake(true);
                 com_status_change(SPEAKING);
@@ -142,22 +141,26 @@ void sr_handler_task(void *pvParam)
                 {
                 case 0:
                     stop_play_mp3();
+                    audio_online_interrupt_playback();
                     com_set_awake(true);
                     audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 1:
                     stop_play_mp3();
+                    audio_online_interrupt_playback();
                     com_set_awake(true);
                     audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 2:
                     stop_play_mp3();
+                    audio_online_interrupt_playback();
                     com_set_awake(true);
                     audio_mp3_play_file_async("/spiffs/104.mp3");
                     break;
                 case 3:
                     com_set_awake(false);
                     audio_mp3_play_file_async("/spiffs/106.mp3");
+                    bsp_ws_stop();
                     com_status_change(IDLE);
                     break;
                 case 4:

@@ -14,6 +14,7 @@
 #include "bsp/bsp_usart.h"
 #include "com/com_status.h"
 #include "bsp/bsp_sdcard.h"
+#include "bsp/bsp_ws.h"
 
 void sr_handler_task(void *pvParam);
 

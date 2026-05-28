@@ -28,6 +28,7 @@ static TaskHandle_t s_ws_task_handle = NULL;
 static TaskHandle_t s_send_task_handle = NULL;
 static volatile bool s_connecting = false;
 static volatile bool s_drop_wakeup_reply = false;
+static volatile bool s_interrupt_online_playback = false;
 
 struct audio_online_sr_handle
 {
@@ -48,6 +49,21 @@ static void audio_online_ws_bin_cb(char *data, int len);
 static void audio_online_send_task(void *arg);
 static void audio_online_ws_task(void *arg);
 
+static void drain_ringbuffer(RingbufHandle_t ringbuf)
+{
+    if (ringbuf == NULL)
+    {
+        return;
+    }
+
+    size_t len = 0;
+    void *item = NULL;
+    while ((item = xRingbufferReceive(ringbuf, &len, 0)) != NULL)
+    {
+        vRingbufferReturnItem(ringbuf, item);
+    }
+}
+
 static void audio_online_play_task(void *arg)
 {
     audio_online_sr_handle_t *handle = (audio_online_sr_handle_t *)arg;
@@ -61,7 +77,10 @@ static void audio_online_play_task(void *arg)
             continue;
         }
 
-        audio_write(data, (int)len);
+        if (!s_interrupt_online_playback)
+        {
+            audio_write(data, (int)len);
+        }
         vRingbufferReturnItem(handle->decode_output_buffer, data);
     }
 }
@@ -108,6 +127,12 @@ static void handle_tts_message(cJSON *json)
 
     if (strcmp(state, "start") == 0)
     {
+        if (s_interrupt_online_playback && com_status != LISTENING)
+        {
+            return;
+        }
+
+        s_interrupt_online_playback = false;
         if (!s_drop_wakeup_reply)
         {
             if (com_status == LISTENING && is_wsline)
@@ -185,6 +210,11 @@ static void audio_online_ws_text_cb(char *data, int len)
 
 static void audio_online_ws_bin_cb(char *data, int len)
 {
+    if (s_interrupt_online_playback)
+    {
+        return;
+    }
+
     if (s_drop_wakeup_reply)
     {
         return;
@@ -440,4 +470,26 @@ esp_err_t audio_online_start_async(void)
 bool audio_online_is_ready(void)
 {
     return is_wsline && bsp_ws_is_connected() && session_id[0] != '\0';
+}
+
+void audio_online_interrupt_playback(void)
+{
+    s_interrupt_online_playback = true;
+    s_drop_wakeup_reply = false;
+
+    if (s_online_handle != NULL)
+    {
+        drain_ringbuffer(s_online_handle->decode_input_buffer);
+        drain_ringbuffer(s_online_handle->decode_output_buffer);
+    }
+
+    if (bsp_ws_is_connected())
+    {
+        bsp_ws_send_abort();
+    }
+
+    if (is_awake)
+    {
+        com_status_change(IDLE);
+    }
 }
